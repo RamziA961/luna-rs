@@ -10,6 +10,7 @@ pub type Context<'a> = poise::Context<'a, ServerState, ServerError>;
 #[derive(Debug, Clone)]
 pub struct ServerState {
     pub configuration_variables: ConfigurationVariables,
+    pub request_client: reqwest::Client,
     pub youtube_client: models::YoutubeClient,
     pub guild_map: Arc<RwLock<HashMap<String, models::GuildState>>>,
 }
@@ -81,6 +82,7 @@ impl Server {
 
                     Ok(ServerState {
                         youtube_client: models::YoutubeClient::new(&vars.youtube_api_key()),
+                        request_client: reqwest::Client::new(),
                         configuration_variables: vars,
                         guild_map: Arc::new(RwLock::new(HashMap::new())),
                     })

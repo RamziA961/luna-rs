@@ -60,4 +60,10 @@ impl PlaybackState {
         self.set_current_track(&next);
         self.set_playing(next.is_some());
     }
+
+    pub fn reset(&mut self) {
+        self.set_current_track(&None);
+        self.set_playing(false);
+        self.queue.clear();
+    }
 }

@@ -1457,6 +1457,7 @@ dependencies = [
 name = "luna-rs-2"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "config",
  "google-youtube3",
  "hyper 0.14.30",
