@@ -1,16 +1,24 @@
-use super::YoutubeMetadata;
 use google_youtube3::{
-    api::{Playlist, PlaylistItem, SearchResult, Video},
     client::NoToken,
     hyper_rustls::{self, HttpsConnector},
     YouTube,
 };
 use hyper::client::HttpConnector;
-use std::{
-    collections::VecDeque,
-    fmt::{Debug, Display},
-};
 use tracing::{error, info, instrument, trace};
+use std::fmt::Debug;
+
+pub mod playlist_metadata;
+pub mod video_metadata;
+
+use playlist_metadata::PlaylistMetadata;
+use video_metadata::VideoMetadata;
+
+
+#[derive(Debug)]
+pub enum YoutubeMetadata {
+    Track(VideoMetadata),
+    Playlist(PlaylistMetadata),
+}
 
 const SINGLE_URI: &str = "https://youtube.com/watch?v=";
 const PLAYLIST_URI: &str = "https://youtube.com/playlist?list=";
@@ -352,196 +360,5 @@ impl YoutubeClient {
 
     fn validate_shareable_url(url: &url::Url) -> bool {
         Self::extract_track_id_from_shareable_url(url).is_some()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct VideoMetadata {
-    pub id: String,
-    pub title: String,
-    pub channel: String,
-    pub url: String,
-}
-
-impl Display for VideoMetadata {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "VideoMetadata {{ id: {}, title: {}, channel: {}, url: {} }}",
-            self.id, self.title, self.channel, self.url
-        )
-    }
-}
-
-impl TryFrom<&Video> for VideoMetadata {
-    type Error = YoutubeError;
-
-    fn try_from(value: &Video) -> Result<Self, Self::Error> {
-        let ref id = value.id;
-
-        let metadata = value.snippet.as_ref().and_then(|snippet| {
-            let ref title = snippet.title;
-            let ref channel = snippet.channel_title;
-
-            match (id, title, channel) {
-                (Some(id), Some(t), Some(c)) => Some(VideoMetadata {
-                    id: id.clone(),
-                    title: t.clone(),
-                    channel: c.clone(),
-                    url: format!("{SINGLE_URI}{id}"),
-                }),
-                _ => None,
-            }
-        });
-
-        metadata.ok_or_else(|| {
-            error!(video=?value, "Video to VideoMetadata conversion failed.");
-            YoutubeError::ConversionError
-        })
-    }
-}
-
-impl TryFrom<&SearchResult> for VideoMetadata {
-    type Error = YoutubeError;
-
-    fn try_from(value: &SearchResult) -> Result<Self, Self::Error> {
-        let ref id = value
-            .id
-            .as_ref()
-            .and_then(|resource_id| resource_id.video_id.clone());
-
-        let metadata = value.snippet.as_ref().and_then(|snippet| {
-            let ref title = snippet.title;
-            let ref channel = snippet.channel_title;
-
-            match (id, title, channel) {
-                (Some(id), Some(t), Some(c)) => Some(VideoMetadata {
-                    id: id.clone(),
-                    title: t.clone(),
-                    channel: c.clone(),
-                    url: format!("{SINGLE_URI}{id}"),
-                }),
-                _ => None,
-            }
-        });
-
-        metadata.ok_or_else(|| {
-            error!(search_result=?value, "SearchResult to VideoMetadata conversion failed.");
-            YoutubeError::ConversionError
-        })
-    }
-}
-
-impl TryFrom<&PlaylistItem> for VideoMetadata {
-    type Error = YoutubeError;
-
-    fn try_from(value: &PlaylistItem) -> Result<Self, Self::Error> {
-        let metadata = value.snippet.as_ref().and_then(|snippet| {
-            let ref id = snippet
-                .resource_id
-                .as_ref()
-                .and_then(|resource_id| resource_id.video_id.clone());
-            let ref title = snippet.title;
-            let ref channel = snippet.channel_title;
-
-            match (id, title, channel) {
-                (Some(id), Some(t), Some(c)) => Some(VideoMetadata {
-                    id: id.clone(),
-                    title: t.clone(),
-                    channel: c.clone(),
-                    url: format!("{}{}", SINGLE_URI, id),
-                }),
-                _ => None,
-            }
-        });
-
-        metadata.ok_or_else(|| {
-            error!(playlist_item=?value, "PlaylistItem to VideoMetadata conversion failed.");
-            YoutubeError::ConversionError
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct PlaylistMetadata {
-    pub id: String,
-    pub title: String,
-    pub channel: String,
-    pub url: String,
-    pub items: VecDeque<VideoMetadata>,
-}
-
-impl Display for PlaylistMetadata {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "PlaylistMetadata {{ id: {}, title: {}, channel: {}, url: {}, items: {} elements }}",
-            self.id,
-            self.title,
-            self.channel,
-            self.url,
-            self.items.len()
-        )
-    }
-}
-
-impl TryFrom<&Playlist> for PlaylistMetadata {
-    type Error = YoutubeError;
-
-    fn try_from(value: &Playlist) -> Result<Self, Self::Error> {
-        let ref id = value.id;
-
-        let metadata = value.snippet.as_ref().and_then(|snippet| {
-            let ref title = snippet.title;
-            let ref channel = snippet.channel_title;
-
-            match (id, title, channel) {
-                (Some(id), Some(t), Some(c)) => Some(PlaylistMetadata {
-                    id: id.clone(),
-                    title: t.clone(),
-                    channel: c.clone(),
-                    url: format!("{PLAYLIST_URI}{id}"),
-                    items: VecDeque::new(),
-                }),
-                _ => None,
-            }
-        });
-
-        metadata.ok_or_else(|| {
-            error!(playlist=?value, "Playlist to PlaylistMetadata conversion failed.");
-            YoutubeError::ConversionError
-        })
-    }
-}
-
-impl TryFrom<&SearchResult> for PlaylistMetadata {
-    type Error = YoutubeError;
-
-    fn try_from(value: &SearchResult) -> Result<Self, Self::Error> {
-        let ref id = value
-            .id
-            .as_ref()
-            .and_then(|resource_id| resource_id.playlist_id.clone());
-
-        let metadata = value.snippet.as_ref().and_then(|snippet| {
-            let ref title = snippet.title;
-            let ref channel = snippet.channel_title;
-
-            match (id, title, channel) {
-                (Some(id), Some(t), Some(c)) => Some(PlaylistMetadata {
-                    id: id.clone(),
-                    title: t.clone(),
-                    channel: c.clone(),
-                    url: format!("{PLAYLIST_URI}{id}"),
-                    items: VecDeque::new(),
-                }),
-                _ => None,
-            }
-        });
-
-        metadata.ok_or_else(|| {
-            error!(search_result=?value, "SearchResult to PlaylistMetadata conversion failed.");
-            YoutubeError::ConversionError
-        })
     }
 }

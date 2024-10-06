@@ -1,4 +1,4 @@
-use super::{PlaybackState, QueueElement};
+use super::PlaybackState;
 
 #[derive(Debug, Clone, Default)]
 pub struct GuildState {

@@ -43,30 +43,38 @@ impl EventHandler for QueueHandler {
         guild_state.playback_state.play_next();
         trace!(guild_state=?guild_state, "Modified guild state to play next track.");
 
-        guild_state
+        let current_track = guild_state
             .playback_state
             .get_current_track()
-            .as_ref()
-            .map(|t| async move {
-                let t_handle = self.handler.lock().await.play(
-                    songbird::input::YoutubeDl::new(self.request_client.clone(), t.url.clone())
-                        .into(),
-                );
+            .clone();
+        trace!(track=?current_track, "Next track found.");
 
-                _ = t_handle
-                    .add_event(
-                        Event::Track(songbird::TrackEvent::End),
-                        Self::new(
-                            &self.guild_id,
-                            self.guild_map.clone(),
-                            self.handler.clone(),
-                            self.request_client.clone(),
-                        ),
-                    )
-                    .map_err(|e| {
-                        error!(err=%e, "Failed to add event handler.");
-                    });
-            });
+        if let Some(t) = current_track {
+            trace!("Attempting to acquire lock.");
+            let mut guard = self.handler.lock().await;
+            trace!("Acquired handler lock.");
+
+            let t_handle = guard.play(
+                songbird::input::YoutubeDl::new(self.request_client.clone(), t.url.clone())
+                .into(),
+            );
+
+            _ = t_handle
+                .add_event(
+                    Event::Track(songbird::TrackEvent::End),
+                    Self::new(
+                        &self.guild_id,
+                        self.guild_map.clone(),
+                        self.handler.clone(),
+                        self.request_client.clone(),
+                    ),
+                )
+                .map_err(|e| {
+                    error!(err=%e, "Failed to add event handler.");
+                });
+        } else {
+            trace!("No track queued to play.");
+        };
         None
     }
 }

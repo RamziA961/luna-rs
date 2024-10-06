@@ -1,7 +1,7 @@
 use crate::{
     actions::{channel_actions, playback_actions},
-    checks::author_in_voice_channel,
-    models::{QueueElement, YoutubeMetadata},
+    checks::{author_in_voice_channel, author_in_shared_voice_channel},
+    models::QueueElement,
     server::{Context, ServerError},
 };
 use tracing::{instrument, trace};
@@ -20,17 +20,16 @@ pub async fn play(_: Context<'_>) -> Result<(), ServerError> {
 }
 
 #[instrument(skip(ctx))]
-#[poise::command(slash_command)]
+#[poise::command(
+    slash_command,
+    check="author_in_voice_channel",
+    check="author_in_shared_voice_channel"
+)]
 pub async fn url(
     ctx: Context<'_>,
     #[description = "URL of the desired resource."] path: String,
 ) -> Result<(), ServerError> {
     channel_actions::join_channel(ctx).await?;
-
-    let guild_id = ctx.guild_id().ok_or_else(|| {
-        ServerError::InternalError("Could not find guild information".to_string())
-    })?;
-
     let metadata = ctx.data().youtube_client.process_url(&path).await;
 
     let queue_element = match metadata {
@@ -41,37 +40,22 @@ pub async fn url(
         }
     };
 
-    trace!(queue_element=?queue_element, "Adding queue element to queue.");
     _ = ctx.defer().await;
-
-    let mut guard = ctx.data().guild_map.write().await;
-    let guild_state = guard.entry(guild_id.to_string()).or_default();
-    guild_state.playback_state.enqueue(queue_element.clone());
-
-    _ = ctx
-        .reply(format!(
-            "{} {}",
-            if guild_state.playback_state.is_playing() {
-                "Queued"
-            } else {
-                "Playing"
-            },
-            queue_element
-        ))
-        .await;
-
-    drop(guard);
-    playback_actions::start_queue_playback(&ctx, &guild_id).await?;
+    trace!(queue_element=?queue_element, "Adding queue element to queue.");
+    playback_actions::add_element_to_queue(&ctx, queue_element).await?;
+    playback_actions::start_queue_playback(&ctx).await?;
     Ok(())
 }
 
 /// Search for a resource to play using a query. The default resource type is a video/track.
 #[instrument(skip(ctx))]
-#[poise::command(slash_command, check = "author_in_voice_channel")]
+#[poise::command(slash_command, 
+    check = "author_in_voice_channel",
+    check = "author_in_shared_voice_channel"
+)]
 pub async fn search(
     ctx: Context<'_>,
 
-    //#[rename = "resource type"]
     #[description = "The type of the desired resource for a search query."] resource_type: Option<
         ResourceType,
     >,
@@ -79,10 +63,6 @@ pub async fn search(
     #[description = "Search query to the requested track or playlist."] query: String,
 ) -> Result<(), ServerError> {
     channel_actions::join_channel(ctx).await?;
-
-    let guild_id = ctx.guild_id().ok_or_else(|| {
-        ServerError::InternalError("Could not find guild information".to_string())
-    })?;
 
     let queue_element = match resource_type {
         Some(ResourceType::Track) | None => {
@@ -110,27 +90,14 @@ pub async fn search(
     match queue_element {
         Ok(element) => {
             _ = ctx.defer().await;
-            let mut guard = ctx.data().guild_map.write().await;
-            let guild_state = guard.entry(guild_id.to_string()).or_default();
-            guild_state.playback_state.enqueue(element.clone());
-
-            _ = ctx
-                .reply(format!(
-                    "{} {}",
-                    if guild_state.playback_state.is_playing() {
-                        "Queued"
-                    } else {
-                        "Playing"
-                    },
-                    element
-                ))
-                .await;
+            trace!(queue_element=?element, "Adding queue element to queue.");
+            playback_actions::add_element_to_queue(&ctx, element).await?;
         }
         Err(e) => {
             _ = ctx.reply(e.to_string()).await;
         }
     };
 
-    playback_actions::start_queue_playback(&ctx, &guild_id).await?;
+    playback_actions::start_queue_playback(&ctx).await?;
     Ok(())
 }

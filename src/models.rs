@@ -6,10 +6,11 @@ mod youtube;
 pub use guild_state::GuildState;
 pub use playback_state::PlaybackState;
 pub use queue_element::QueueElement;
-pub use youtube::{PlaylistMetadata, VideoMetadata, YoutubeClient};
 
-#[derive(Debug)]
-pub enum YoutubeMetadata {
-    Track(VideoMetadata),
-    Playlist(PlaylistMetadata),
-}
+pub use youtube::{
+    video_metadata::VideoMetadata, 
+    playlist_metadata::PlaylistMetadata,
+    YoutubeMetadata,
+    YoutubeClient
+};
+
