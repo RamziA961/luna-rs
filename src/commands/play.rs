@@ -42,7 +42,7 @@ pub async fn url(
     };
 
     trace!(queue_element=?queue_element, "Adding queue element to queue.");
-    ctx.defer().await?;
+    _ = ctx.defer().await;
 
     let mut guard = ctx.data().guild_map.write().await;
     let guild_state = guard.entry(guild_id.to_string()).or_default();

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use poise::serenity_prelude::{futures::lock::Mutex, GuildId};
+use poise::serenity_prelude::GuildId;
 use songbird::{Event, EventContext, EventHandler};
 use tokio::sync::RwLock;
 use tracing::{error, instrument, trace};
@@ -33,10 +33,7 @@ impl DisconnectHandler {
 impl EventHandler for DisconnectHandler {
     #[instrument(skip_all, fields(guild_id=self.guild_id.to_string()))]
     async fn act(&self, _e: &EventContext<'_>) -> Option<Event> {
-        trace!(
-            "Disconnected from a voice channel. Cleaning up guild state for {}.",
-            self.guild_id
-        );
+        trace!("Disconnected from a voice channel. Cleaning up guild state.");
 
         let mut guard = self.guild_map.write().await;
         guard.remove(&self.guild_id.to_string());

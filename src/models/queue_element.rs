@@ -12,15 +12,16 @@ impl Display for QueueElement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             QueueElement::Track(t) => {
-                write!(f, "Track {} - {}", t.title, t.channel)
+                write!(f, "Track: {} - {}\nURL: {}", t.title, t.channel, t.url)
             }
             QueueElement::Playlist(p) => {
                 write!(
                     f,
-                    "Playlist {} - {} with {} tracks",
+                    "Playlist: {} - {} with {} tracks\nURL: {}",
                     p.title,
                     p.channel,
-                    p.items.len()
+                    p.items.len(),
+                    p.url
                 )
             }
         }

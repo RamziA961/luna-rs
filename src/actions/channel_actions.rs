@@ -1,8 +1,8 @@
 use crate::{
-    event_handlers::disconnect_handler::DisconnectHandler,
+    event_handlers::{disconnect_handler::DisconnectHandler, error_handler::ErrorHandler},
     server::{Context, ServerError},
 };
-use songbird::CoreEvent;
+use songbird::{CoreEvent, Event};
 use tracing::{error, instrument};
 
 #[instrument(skip_all)]
@@ -47,9 +47,11 @@ pub async fn join_channel(ctx: Context<'_>) -> Result<(), ServerError> {
             let mut handle = handle_lock.lock().await;
 
             handle.add_global_event(
-                songbird::Event::Core(CoreEvent::DriverDisconnect),
+                Event::Core(CoreEvent::DriverDisconnect),
                 DisconnectHandler::new(&guild_id, ctx.data().guild_map.clone(), manager),
             );
+
+            handle.add_global_event(Event::Track(songbird::TrackEvent::Error), ErrorHandler);
 
             Ok(())
         }
