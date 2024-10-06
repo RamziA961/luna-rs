@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use poise::serenity_prelude::GuildId;
 use songbird::{Event, EventContext, EventHandler};
 use tokio::sync::{Mutex, RwLock};
-use tracing::{error, instrument};
+use tracing::{error, instrument, trace};
 
 use crate::models::GuildState;
 
@@ -34,22 +34,20 @@ impl QueueHandler {
 
 #[async_trait]
 impl EventHandler for QueueHandler {
-    #[instrument(skip(_e))]
+    #[instrument(skip_all, fields(guild_id = self.guild_id.to_string()))]
     async fn act(&self, _e: &EventContext<'_>) -> Option<Event> {
+        trace!("Track has ended. Handler called to action.");
         let mut guard = self.guild_map.write().await;
-        let guild_state = guard.get_mut(&self.guild_id.to_string());
 
-        if guild_state.is_none() {
-            return None;
-        }
-
-        let guild_state = guild_state.unwrap();
+        let guild_state = guard.get_mut(&self.guild_id.to_string())?;
         guild_state.playback_state.play_next();
+        trace!(guild_state=?guild_state, "Modified guild state to play next track.");
 
-        let next = guild_state.playback_state.get_current_track();
-
-        match next {
-            Some(t) => {
+        guild_state
+            .playback_state
+            .get_current_track()
+            .as_ref()
+            .map(|t| async move {
                 let t_handle = self.handler.lock().await.play(
                     songbird::input::YoutubeDl::new(self.request_client.clone(), t.url.clone())
                         .into(),
@@ -68,9 +66,7 @@ impl EventHandler for QueueHandler {
                     .map_err(|e| {
                         error!(err=%e, "Failed to add event handler.");
                     });
-                None
-            }
-            None => None,
-        }
+            });
+        None
     }
 }

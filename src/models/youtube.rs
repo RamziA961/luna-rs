@@ -1,3 +1,4 @@
+use super::YoutubeMetadata;
 use google_youtube3::{
     api::{Playlist, SearchResult, Video},
     client::NoToken,
@@ -7,7 +8,6 @@ use google_youtube3::{
 use hyper::client::HttpConnector;
 use std::{collections::VecDeque, fmt::Debug};
 use tracing::{error, info, instrument, trace};
-use super::YoutubeMetadata;
 
 const SINGLE_URI: &str = "https://youtube.com/watch?v=";
 const PLAYLIST_URI: &str = "https://youtube.com/playlist?list=";
@@ -63,7 +63,7 @@ impl YoutubeClient {
             trace!(err=%e, "Could not parse URL.");
             YoutubeError::UrlError
         })?;
-        
+
         trace!(domain=?path.domain());
         match path.domain() {
             Some("www.youtube.com") if Self::validate_standard_url(&path) => {
@@ -97,7 +97,7 @@ impl YoutubeClient {
             _ => {
                 trace!(url=?path, "Reporting URL as error.");
                 Err(YoutubeError::UrlError)
-            },
+            }
         }
     }
 

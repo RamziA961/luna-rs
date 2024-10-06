@@ -3,7 +3,7 @@ use crate::{
     server::{Context, ServerError},
 };
 use poise::serenity_prelude::GuildId;
-use songbird::{input::Compose, Event, TrackEvent};
+use songbird::{Event, TrackEvent};
 use tracing::{error, instrument, trace};
 
 #[instrument(skip(ctx))]
@@ -38,7 +38,7 @@ pub async fn start_queue_playback(
     let manager_lock = manager.get_or_insert(*guild_id);
     trace!("Commencing download and audio conversion of video.");
     let t = songbird::input::YoutubeDl::new(req_client.clone(), url);
-    
+
     let mut guard = manager_lock.lock().await;
     trace!("Attempting to play converted track.");
     let t_handle = guard.play(t.into());
