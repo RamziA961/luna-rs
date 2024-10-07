@@ -14,11 +14,7 @@ pub struct VideoMetadata {
 
 impl Display for VideoMetadata {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Track: {} - {}", 
-            self.title, self.channel 
-        )
+        write!(f, "Track: {} - {}", self.title, self.channel)
     }
 }
 

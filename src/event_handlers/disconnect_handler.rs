@@ -36,7 +36,11 @@ impl EventHandler for DisconnectHandler {
         trace!("Disconnected from a voice channel. Cleaning up guild state.");
 
         let mut guard = self.guild_map.write().await;
-        guard.remove(&self.guild_id.to_string());
+        
+        // If guild state not present, terminate early.
+        // This will likely mean, the inactivity handler,
+        // was fired.
+        guard.remove(&self.guild_id.to_string())?;
         drop(guard);
 
         _ = self

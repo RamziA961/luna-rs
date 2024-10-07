@@ -40,7 +40,7 @@ pub async fn url(
         }
     };
 
-    _ = ctx.defer().await;
+    _ = ctx.defer_ephemeral().await;
     trace!(queue_element=?queue_element, "Adding queue element to queue.");
 
     playback_actions::add_element_to_queue(&ctx, queue_element).await?;
@@ -91,7 +91,7 @@ pub async fn search(
 
     match queue_element {
         Ok(element) => {
-            _ = ctx.defer().await;
+            _ = ctx.defer_ephemeral().await;
             trace!(queue_element=?element, "Adding queue element to queue.");
             playback_actions::add_element_to_queue(&ctx, element).await?;
         }

@@ -1,5 +1,8 @@
 use crate::{
-    event_handlers::{disconnect_handler::DisconnectHandler, error_handler::ErrorHandler},
+    event_handlers::{
+        disconnect_handler::DisconnectHandler, error_handler::ErrorHandler,
+        inactivity_handler::InactivityHandler,
+    },
     server::{Context, ServerError},
 };
 use songbird::{CoreEvent, Event};
@@ -35,7 +38,6 @@ pub async fn join_channel(ctx: Context<'_>) -> Result<(), ServerError> {
     }
 
     let channel_id = channel_id.unwrap();
-
     let manager = songbird::get(ctx.serenity_context())
         .await
         .ok_or_else(|| ServerError::InternalError("Could not find Songbird client.".to_string()))?;
@@ -48,9 +50,17 @@ pub async fn join_channel(ctx: Context<'_>) -> Result<(), ServerError> {
 
             handle.add_global_event(
                 Event::Core(CoreEvent::DriverDisconnect),
-                DisconnectHandler::new(&guild_id, ctx.data().guild_map.clone(), manager),
+                DisconnectHandler::new(&guild_id, ctx.data().guild_map.clone(), manager.clone()),
             );
 
+            handle.add_global_event(
+                Event::Core(CoreEvent::ClientDisconnect),
+                InactivityHandler::new(
+                    &guild_id,
+                    manager.clone(),
+                    ctx.serenity_context().cache.clone(),
+                ),
+            );
             handle.add_global_event(Event::Track(songbird::TrackEvent::Error), ErrorHandler);
 
             Ok(())

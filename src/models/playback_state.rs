@@ -52,16 +52,14 @@ impl PlaybackState {
 
     pub fn dequeue(&mut self) -> Option<VideoMetadata> {
         match self.queue.pop_front() {
-            Some(QueueElement::Track(t)) => {
-                Some(t)
-            }
+            Some(QueueElement::Track(t)) => Some(t),
             Some(QueueElement::Playlist(mut p)) => {
                 let next = p.items.pop_front();
                 if p.items.len() > 0 {
                     self.queue.push_front(QueueElement::Playlist(p));
                 }
                 next
-            },
+            }
             None => None,
         }
     }

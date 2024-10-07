@@ -1,4 +1,8 @@
-use crate::{actions::playback_actions, checks::{author_in_shared_voice_channel, author_in_voice_channel}, server::{Context, ServerError}};
+use crate::{
+    actions::playback_actions,
+    checks::{author_in_shared_voice_channel, author_in_voice_channel},
+    server::{Context, ServerError},
+};
 
 // Resume a paused track.
 #[poise::command(

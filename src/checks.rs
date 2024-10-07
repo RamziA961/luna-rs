@@ -1,4 +1,4 @@
-use tracing::error;
+use tracing::{error, trace};
 
 use crate::server::{Context, ServerError};
 
@@ -16,6 +16,7 @@ pub async fn author_in_voice_channel(ctx: Context<'_>) -> Result<bool, ServerErr
             ))
         }
         Some(false) => {
+            trace!("Command requirements not met. Command dispatched by author that is not in a voice channel.");
             ctx.reply("Please join a voice channel to initiate this command.")
                 .await?;
             Ok(false)

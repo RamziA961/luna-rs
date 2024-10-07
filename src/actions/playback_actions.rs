@@ -181,33 +181,29 @@ pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), ServerError> {
     })?;
 
     let mut guard = ctx.data().guild_map.write().await;
-    let guild_state = guard.get_mut(&guild_id.to_string())
-        .ok_or_else(|| {
-            ServerError::InternalError("Could not find guild playback information".to_string())
-        })?;
-    
+    let guild_state = guard.get_mut(&guild_id.to_string()).ok_or_else(|| {
+        ServerError::InternalError("Could not find guild playback information".to_string())
+    })?;
+
     let track_handle = if let Some(handle) = guild_state.playback_state.get_track_handle().clone() {
         handle
     } else {
         _ = ctx.reply("The queue is empty.").await;
         return Ok(());
     };
-    
+
     for _ in 0..n - 1 {
         guild_state.playback_state.dequeue();
     }
-    
-    let next = guild_state.playback_state.next()
-        .as_ref()
-        .map_or_else(
-            || "".to_string(), 
-            |t| format!("\n{}", t.to_string())
-        );
 
-    _ = ctx.reply(format!( "Skipped {n} tracks.{next}"))
-        .await;
+    let next = guild_state
+        .playback_state
+        .next()
+        .as_ref()
+        .map_or_else(|| "".to_string(), |t| format!("\n{}", t.to_string()));
+
+    _ = ctx.reply(format!("Skipped {n} tracks.{next}")).await;
     _ = track_handle.stop();
 
     Ok(())
 }
-
