@@ -4,15 +4,14 @@ use google_youtube3::{
     YouTube,
 };
 use hyper::client::HttpConnector;
-use tracing::{error, info, instrument, trace};
 use std::fmt::Debug;
+use tracing::{error, info, instrument, trace};
 
 pub mod playlist_metadata;
 pub mod video_metadata;
 
 use playlist_metadata::PlaylistMetadata;
 use video_metadata::VideoMetadata;
-
 
 #[derive(Debug)]
 pub enum YoutubeMetadata {

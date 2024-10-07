@@ -1,8 +1,8 @@
-use std::fmt::Display;
-use google_youtube3::api::{PlaylistItem, SearchResult, Video};
-use tracing::{error, instrument};
 use super::{YoutubeError, SINGLE_URI};
+use google_youtube3::api::{PlaylistItem, SearchResult, Video};
 use html_escape::decode_html_entities as decode_html;
+use std::fmt::Display;
+use tracing::{error, instrument};
 
 #[derive(Debug, Clone)]
 pub struct VideoMetadata {
@@ -16,8 +16,8 @@ impl Display for VideoMetadata {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "VideoMetadata {{ id: {}, title: {}, channel: {}, url: {} }}",
-            self.id, self.title, self.channel, self.url
+            "Track: {} - {}", 
+            self.title, self.channel 
         )
     }
 }
@@ -53,7 +53,7 @@ impl TryFrom<&Video> for VideoMetadata {
 
 impl TryFrom<&SearchResult> for VideoMetadata {
     type Error = YoutubeError;
-    
+
     #[instrument]
     fn try_from(value: &SearchResult) -> Result<Self, Self::Error> {
         let ref id = value
@@ -85,7 +85,7 @@ impl TryFrom<&SearchResult> for VideoMetadata {
 
 impl TryFrom<&PlaylistItem> for VideoMetadata {
     type Error = YoutubeError;
-    
+
     #[instrument]
     fn try_from(value: &PlaylistItem) -> Result<Self, Self::Error> {
         let metadata = value.snippet.as_ref().and_then(|snippet| {

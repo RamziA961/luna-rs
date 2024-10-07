@@ -15,11 +15,11 @@ impl Display for QueueElement {
                 write!(f, "Track: {} - {}\nURL: {}", t.title, t.channel, t.url)
             }
             QueueElement::Playlist(p) => {
-                let head = 
-                    p.items
-                        .front()
-                        .map(|t| format!("Up next: {} - {}\n", t.title, t.channel))
-                        .unwrap_or("".to_string());
+                let head = p
+                    .items
+                    .front()
+                    .map(|t| format!("Up next: {} - {}\n", t.title, t.channel))
+                    .unwrap_or("".to_string());
 
                 write!(
                     f,

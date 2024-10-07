@@ -43,15 +43,16 @@ pub async fn author_in_shared_voice_channel(ctx: Context<'_>) -> Result<bool, Se
         (Some(author_vc), Some(bot_vc)) if author_vc == bot_vc => Ok(true),
         (Some(_), None) => Ok(true),
         (Some(_), Some(_)) | (None, Some(_)) => {
-            _ = ctx.reply("Please join a shared voice channel to issue this command.")
+            _ = ctx
+                .reply("Please join a shared voice channel to issue this command.")
                 .await;
             Ok(false)
-        },
+        }
         (None, None) => {
-            _ = ctx.reply("Please join a voice channel to initiate this command.")
+            _ = ctx
+                .reply("Please join a voice channel to initiate this command.")
                 .await;
             Ok(false)
-        },
-        
+        }
     }
 }

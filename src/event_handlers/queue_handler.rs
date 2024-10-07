@@ -1,12 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use poise::serenity_prelude::GuildId;
+use poise::serenity_prelude::{model::guild, GuildId};
 use songbird::{Event, EventContext, EventHandler};
 use tokio::sync::{Mutex, RwLock};
 use tracing::{error, instrument, trace};
 
-use crate::models::GuildState;
+use crate::{models::GuildState, server::Context};
 
 #[derive(Debug)]
 pub struct QueueHandler {
@@ -16,7 +16,7 @@ pub struct QueueHandler {
     request_client: reqwest::Client,
 }
 
-impl QueueHandler {
+impl<'a> QueueHandler {
     pub fn new(
         guild_id: &GuildId,
         guild_map: Arc<RwLock<HashMap<String, GuildState>>>,
@@ -43,21 +43,17 @@ impl EventHandler for QueueHandler {
         guild_state.playback_state.play_next();
         trace!(guild_state=?guild_state, "Modified guild state to play next track.");
 
-        let current_track = guild_state
-            .playback_state
-            .get_current_track()
-            .clone();
-        trace!(track=?current_track, "Next track found.");
+        let current_track = guild_state.playback_state.get_current_track().clone();
 
         if let Some(t) = current_track {
-            trace!("Attempting to acquire lock.");
+            trace!(track=?t, "Next track found.");
             let mut guard = self.handler.lock().await;
-            trace!("Acquired handler lock.");
 
             let t_handle = guard.play(
-                songbird::input::YoutubeDl::new(self.request_client.clone(), t.url.clone())
-                .into(),
+                songbird::input::YoutubeDl::new(self.request_client.clone(), t.url.clone()).into(),
             );
+
+            //_ = self.ctx.reply(t.to_string()).await;
 
             _ = t_handle
                 .add_event(
@@ -67,14 +63,18 @@ impl EventHandler for QueueHandler {
                         self.guild_map.clone(),
                         self.handler.clone(),
                         self.request_client.clone(),
+                        //self.ctx.clone(),
                     ),
                 )
                 .map_err(|e| {
                     error!(err=%e, "Failed to add event handler.");
                 });
+
+            guild_state.playback_state.set_track_handle(Some(t_handle));
         } else {
             trace!("No track queued to play.");
         };
+
         None
     }
 }

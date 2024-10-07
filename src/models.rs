@@ -8,9 +8,6 @@ pub use playback_state::PlaybackState;
 pub use queue_element::QueueElement;
 
 pub use youtube::{
-    video_metadata::VideoMetadata, 
-    playlist_metadata::PlaylistMetadata,
+    playlist_metadata::PlaylistMetadata, video_metadata::VideoMetadata, YoutubeClient,
     YoutubeMetadata,
-    YoutubeClient
 };
-

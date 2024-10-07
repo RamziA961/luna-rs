@@ -1,6 +1,6 @@
 use crate::{
     actions::{channel_actions, playback_actions},
-    checks::{author_in_voice_channel, author_in_shared_voice_channel},
+    checks::{author_in_shared_voice_channel, author_in_voice_channel},
     models::QueueElement,
     server::{Context, ServerError},
 };
@@ -13,17 +13,17 @@ pub enum ResourceType {
     Playlist,
 }
 
-/// Play a track or playlist using a URL or search query.
 #[poise::command(slash_command, subcommands("url", "search"))]
 pub async fn play(_: Context<'_>) -> Result<(), ServerError> {
     Ok(())
 }
 
+/// Play a track or playlist using a URL or search query.
 #[instrument(skip(ctx))]
 #[poise::command(
     slash_command,
-    check="author_in_voice_channel",
-    check="author_in_shared_voice_channel"
+    check = "author_in_voice_channel",
+    check = "author_in_shared_voice_channel"
 )]
 pub async fn url(
     ctx: Context<'_>,
@@ -42,6 +42,7 @@ pub async fn url(
 
     _ = ctx.defer().await;
     trace!(queue_element=?queue_element, "Adding queue element to queue.");
+
     playback_actions::add_element_to_queue(&ctx, queue_element).await?;
     playback_actions::start_queue_playback(&ctx).await?;
     Ok(())
@@ -49,7 +50,8 @@ pub async fn url(
 
 /// Search for a resource to play using a query. The default resource type is a video/track.
 #[instrument(skip(ctx))]
-#[poise::command(slash_command, 
+#[poise::command(
+    slash_command,
     check = "author_in_voice_channel",
     check = "author_in_shared_voice_channel"
 )]

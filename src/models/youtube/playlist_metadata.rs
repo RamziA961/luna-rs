@@ -1,8 +1,8 @@
-use std::{collections::VecDeque, fmt::Display};
+use super::{video_metadata::VideoMetadata, YoutubeError, PLAYLIST_URI};
 use google_youtube3::api::{Playlist, SearchResult};
-use tracing::{error, instrument};
-use super::{video_metadata::VideoMetadata, PLAYLIST_URI, YoutubeError};
 use html_escape::decode_html_entities as decode_html;
+use std::{collections::VecDeque, fmt::Display};
+use tracing::{error, instrument};
 
 #[derive(Debug, Clone)]
 pub struct PlaylistMetadata {
@@ -17,11 +17,9 @@ impl Display for PlaylistMetadata {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "PlaylistMetadata {{ id: {}, title: {}, channel: {}, url: {}, items: {} elements }}",
-            self.id,
+            "Playlist: {} - {} with {} remaining tracks",
             self.title,
             self.channel,
-            self.url,
             self.items.len()
         )
     }
@@ -29,7 +27,7 @@ impl Display for PlaylistMetadata {
 
 impl TryFrom<&Playlist> for PlaylistMetadata {
     type Error = YoutubeError;
-    
+
     #[instrument]
     fn try_from(value: &Playlist) -> Result<Self, Self::Error> {
         let ref id = value.id;
@@ -59,7 +57,7 @@ impl TryFrom<&Playlist> for PlaylistMetadata {
 
 impl TryFrom<&SearchResult> for PlaylistMetadata {
     type Error = YoutubeError;
-    
+
     #[instrument]
     fn try_from(value: &SearchResult) -> Result<Self, Self::Error> {
         let ref id = value

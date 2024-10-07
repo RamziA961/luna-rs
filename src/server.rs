@@ -58,7 +58,13 @@ impl Server {
         let framework = poise::Framework::<ServerState, ServerError>::builder()
             .options(poise::FrameworkOptions {
                 on_error: |err| Box::pin(Self::error_handler(err)),
-                commands: vec![commands::play::play(), commands::stop::stop()],
+                commands: vec![
+                    commands::pause::pause(),
+                    commands::play::play(),
+                    commands::resume::resume(),
+                    commands::skip::skip(),
+                    commands::stop::stop(),
+                ],
                 require_cache_for_guild_check: true,
                 ..Default::default()
             })
