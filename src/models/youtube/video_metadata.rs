@@ -23,11 +23,11 @@ impl TryFrom<&Video> for VideoMetadata {
 
     #[instrument]
     fn try_from(value: &Video) -> Result<Self, Self::Error> {
-        let ref id = value.id;
+        let id = &value.id;
 
         let metadata = value.snippet.as_ref().and_then(|snippet| {
-            let ref title = snippet.title;
-            let ref channel = snippet.channel_title;
+            let title = &snippet.title;
+            let channel = &snippet.channel_title;
 
             match (id, title, channel) {
                 (Some(id), Some(t), Some(c)) => Some(VideoMetadata {
@@ -52,14 +52,14 @@ impl TryFrom<&SearchResult> for VideoMetadata {
 
     #[instrument]
     fn try_from(value: &SearchResult) -> Result<Self, Self::Error> {
-        let ref id = value
+        let id = &value
             .id
             .as_ref()
             .and_then(|resource_id| resource_id.video_id.clone());
 
         let metadata = value.snippet.as_ref().and_then(|snippet| {
-            let ref title = snippet.title;
-            let ref channel = snippet.channel_title;
+            let title = &snippet.title;
+            let channel = &snippet.channel_title;
 
             match (id, title, channel) {
                 (Some(id), Some(t), Some(c)) => Some(VideoMetadata {
@@ -85,12 +85,12 @@ impl TryFrom<&PlaylistItem> for VideoMetadata {
     #[instrument]
     fn try_from(value: &PlaylistItem) -> Result<Self, Self::Error> {
         let metadata = value.snippet.as_ref().and_then(|snippet| {
-            let ref id = snippet
+            let id = &snippet
                 .resource_id
                 .as_ref()
                 .and_then(|resource_id| resource_id.video_id.clone());
-            let ref title = snippet.title;
-            let ref channel = snippet.channel_title;
+            let title = &snippet.title;
+            let channel = &snippet.channel_title;
 
             match (id, title, channel) {
                 (Some(id), Some(t), Some(c)) => Some(VideoMetadata {

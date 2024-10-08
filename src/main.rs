@@ -12,7 +12,7 @@ mod server;
 
 #[tokio::main]
 async fn main() -> Result<(), ServerError> {
-    let _ = tracing_subscriber::fmt()
+    tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::builder()
                 //.with_default_directive(LevelFilter::TRACE.into())

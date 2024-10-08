@@ -11,6 +11,12 @@ pub struct ConfigurationVariables {
     dev_guild_id: usize,
 }
 
+impl Default for ConfigurationVariables {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConfigurationVariables {
     #[cfg(not(debug_assertions))]
     pub fn new() -> Self {
@@ -40,9 +46,7 @@ impl ConfigurationVariables {
         let vars = Config::builder()
             .add_source(File::with_name(DEV_SOURCE))
             .build()
-            .expect(&format!(
-                "Configuration file not found. {RELEASE_SOURCE} file expected."
-            ));
+            .unwrap_or_else(|_| panic!("Configuration file not found. {RELEASE_SOURCE} file expected."));
 
         let discord_token = vars
             .get_string("DISCORD_TOKEN")

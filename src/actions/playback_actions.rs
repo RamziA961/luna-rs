@@ -100,9 +100,8 @@ pub async fn stop(ctx: &Context<'_>) -> Result<(), ServerError> {
     let mut guard = ctx.data().guild_map.write().await;
     trace!(guild_id=?guild_id, "Resetting guild state.");
 
-    guard
-        .get_mut(&guild_id.to_string())
-        .map(|state| state.playback_state.reset());
+    if let Some(state) = guard
+        .get_mut(&guild_id.to_string()) { state.playback_state.reset() }
     drop(guard);
 
     trace!("Stopping current track.");
@@ -130,17 +129,15 @@ pub async fn pause(ctx: &Context<'_>) -> Result<(), ServerError> {
 
     let mut guard = ctx.data().guild_map.write().await;
     let guild_state = guard.get_mut(&guild_id.to_string());
-    let track_data = guild_state.and_then(|guild_state| {
-        Some((
+    let track_data = guild_state.map(|guild_state| (
             guild_state.playback_state.get_current_track().clone(),
             guild_state.playback_state.get_track_handle().clone(),
-        ))
-    });
+        ));
 
     if let Some((Some(current_track), Some(track_handle))) = track_data {
         _ = track_handle.pause();
         _ = ctx
-            .reply(format!("Paused {}", current_track.to_string()))
+            .reply(format!("Paused {}", current_track))
             .await;
     } else {
         _ = ctx.reply("Nothing is currently playing.")
@@ -156,17 +153,15 @@ pub async fn resume(ctx: &Context<'_>) -> Result<(), ServerError> {
 
     let mut guard = ctx.data().guild_map.write().await;
     let guild_state = guard.get_mut(&guild_id.to_string());
-    let track_data = guild_state.and_then(|guild_state| {
-        Some((
+    let track_data = guild_state.map(|guild_state| (
             guild_state.playback_state.get_current_track().clone(),
             guild_state.playback_state.get_track_handle().clone(),
-        ))
-    });
+        ));
 
     if let Some((Some(current_track), Some(track_handle))) = track_data {
         _ = track_handle.play();
         _ = ctx
-            .reply(format!("Resumed {}", current_track.to_string()))
+            .reply(format!("Resumed {}", current_track))
             .await;
     } else {
         _ = ctx.reply("Nothing is currently playing.")
@@ -200,7 +195,7 @@ pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), ServerError> {
         .playback_state
         .next()
         .as_ref()
-        .map_or_else(|| "".to_string(), |t| format!("\n{}", t.to_string()));
+        .map_or_else(|| "".to_string(), |t| format!("\n{}", t));
 
     _ = ctx.reply(format!("Skipped {n} tracks.{next}")).await;
     _ = track_handle.stop();

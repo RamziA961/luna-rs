@@ -55,7 +55,7 @@ impl PlaybackState {
             Some(QueueElement::Track(t)) => Some(t),
             Some(QueueElement::Playlist(mut p)) => {
                 let next = p.items.pop_front();
-                if p.items.len() > 0 {
+                if !p.items.is_empty() {
                     self.queue.push_front(QueueElement::Playlist(p));
                 }
                 next

@@ -223,7 +223,7 @@ impl YoutubeClient {
             .client
             .playlists()
             .list(&vec!["snippet".to_string()])
-            .add_id(&playlist_id)
+            .add_id(playlist_id)
             .param("key", &self.api_key)
             .max_results(1);
 
@@ -276,7 +276,7 @@ impl YoutubeClient {
         let (_, mut response_items) = create_request()
             .doit()
             .await
-            .map_err(|e| YoutubeError::ApiError(e))?;
+            .map_err(YoutubeError::ApiError)?;
 
         let mut playlst_items = vec![];
 
@@ -297,10 +297,10 @@ impl YoutubeClient {
 
             if let Some(pg_token) = next_page_token {
                 (_, response_items) = create_request()
-                    .page_token(&pg_token)
+                    .page_token(pg_token)
                     .doit()
                     .await
-                    .map_err(|e| YoutubeError::ApiError(e))?
+                    .map_err(YoutubeError::ApiError)?
             } else {
                 break;
             }
@@ -350,9 +350,9 @@ impl YoutubeClient {
         match url.path() {
             "/watch" => {
                 // ignore playlist portion
-                Self::extract_track_id_from_standard_url(&url).is_some()
+                Self::extract_track_id_from_standard_url(url).is_some()
             }
-            "/playlist" => Self::extract_playlist_id_from_standard_url(&url).is_some(),
+            "/playlist" => Self::extract_playlist_id_from_standard_url(url).is_some(),
             _ => false,
         }
     }

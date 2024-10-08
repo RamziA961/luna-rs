@@ -68,24 +68,24 @@ pub async fn search(
 
     let queue_element = match resource_type {
         Some(ResourceType::Track) | None => {
-            let metadata = ctx
+            
+
+            ctx
                 .data()
                 .youtube_client
                 .search_video(&query)
                 .await
-                .map(|video| QueueElement::Track(video));
-
-            metadata
+                .map(QueueElement::Track)
         }
         Some(ResourceType::Playlist) => {
-            let metadata = ctx
+            
+
+            ctx
                 .data()
                 .youtube_client
                 .search_playlist(&query)
                 .await
-                .map(|playlist| QueueElement::Playlist(playlist));
-
-            metadata
+                .map(QueueElement::Playlist)
         }
     };
 

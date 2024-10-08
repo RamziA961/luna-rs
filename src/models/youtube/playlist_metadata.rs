@@ -30,11 +30,11 @@ impl TryFrom<&Playlist> for PlaylistMetadata {
 
     #[instrument]
     fn try_from(value: &Playlist) -> Result<Self, Self::Error> {
-        let ref id = value.id;
+        let id = &value.id;
 
         let metadata = value.snippet.as_ref().and_then(|snippet| {
-            let ref title = snippet.title;
-            let ref channel = snippet.channel_title;
+            let title = &snippet.title;
+            let channel = &snippet.channel_title;
 
             match (id, title, channel) {
                 (Some(id), Some(t), Some(c)) => Some(PlaylistMetadata {
@@ -60,14 +60,14 @@ impl TryFrom<&SearchResult> for PlaylistMetadata {
 
     #[instrument]
     fn try_from(value: &SearchResult) -> Result<Self, Self::Error> {
-        let ref id = value
+        let id = &value
             .id
             .as_ref()
             .and_then(|resource_id| resource_id.playlist_id.clone());
 
         let metadata = value.snippet.as_ref().and_then(|snippet| {
-            let ref title = snippet.title;
-            let ref channel = snippet.channel_title;
+            let title = &snippet.title;
+            let channel = &snippet.channel_title;
 
             match (id, title, channel) {
                 (Some(id), Some(t), Some(c)) => Some(PlaylistMetadata {

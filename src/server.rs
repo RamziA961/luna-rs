@@ -87,7 +87,7 @@ impl Server {
                     })?;
 
                     Ok(ServerState {
-                        youtube_client: models::YoutubeClient::new(&vars.youtube_api_key()),
+                        youtube_client: models::YoutubeClient::new(vars.youtube_api_key()),
                         request_client: reqwest::Client::new(),
                         configuration_variables: vars,
                         guild_map: Arc::new(RwLock::new(HashMap::new())),

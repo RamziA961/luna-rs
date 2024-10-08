@@ -22,7 +22,7 @@ impl DisconnectHandler {
         handler: Arc<songbird::Songbird>,
     ) -> Self {
         Self {
-            guild_id: guild_id.clone(),
+            guild_id: *guild_id,
             guild_map,
             handler,
         }

@@ -24,7 +24,7 @@ impl QueueHandler {
         request_client: reqwest::Client,
     ) -> Self {
         Self {
-            guild_id: guild_id.clone(),
+            guild_id: *guild_id,
             guild_map,
             handler,
             request_client,

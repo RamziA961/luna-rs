@@ -18,7 +18,7 @@ impl InactivityHandler {
         cache: Arc<poise::serenity_prelude::Cache>,
     ) -> Self {
         Self {
-            guild_id: guild_id.clone(),
+            guild_id: *guild_id,
             handler,
             cache,
         }
@@ -33,7 +33,7 @@ impl EventHandler for InactivityHandler {
             .guild(self.guild_id)
             .as_ref()
             .and_then(|guild| guild.voice_states.get(&self.cache.current_user().id))
-            .and_then(|voice_state| voice_state.channel_id.clone());
+            .and_then(|voice_state| voice_state.channel_id);
 
         let member_count = self
             .cache
