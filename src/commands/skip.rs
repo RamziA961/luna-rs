@@ -17,5 +17,6 @@ pub async fn skip(
     #[min = 1_usize]
     n: Option<usize>,
 ) -> Result<(), ServerError> {
+    _ = ctx.defer().await;
     playback_actions::skip(&ctx, n.unwrap_or(1)).await
 }

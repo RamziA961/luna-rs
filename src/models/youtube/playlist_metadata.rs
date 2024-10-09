@@ -2,7 +2,7 @@ use super::{video_metadata::VideoMetadata, YoutubeError, PLAYLIST_URI};
 use google_youtube3::api::{Playlist, SearchResult};
 use html_escape::decode_html_entities as decode_html;
 use std::{collections::VecDeque, fmt::Display};
-use tracing::{error, instrument};
+use tracing::{error, instrument, trace};
 
 #[derive(Debug, Clone)]
 pub struct PlaylistMetadata {
@@ -10,6 +10,7 @@ pub struct PlaylistMetadata {
     pub title: String,
     pub channel: String,
     pub url: String,
+    pub thumbnail_url: String,
     pub items: VecDeque<VideoMetadata>,
 }
 
@@ -35,13 +36,28 @@ impl TryFrom<&Playlist> for PlaylistMetadata {
         let metadata = value.snippet.as_ref().and_then(|snippet| {
             let title = &snippet.title;
             let channel = &snippet.channel_title;
+            let thumbnail_url = &snippet
+                .thumbnails
+                .as_ref()
+                .and_then(|details| {
+                    details
+                        .maxres
+                        .as_ref()
+                        .or_else(|| details.high.as_ref())
+                        .or_else(|| details.medium.as_ref())
+                        .or_else(|| details.standard.as_ref())
+                        .or_else(|| details.default.as_ref())
+                })
+                .and_then(|thumbnail| thumbnail.url.as_ref());
 
-            match (id, title, channel) {
-                (Some(id), Some(t), Some(c)) => Some(PlaylistMetadata {
+            trace!(title = title, channel = channel, thumbnail = thumbnail_url);
+            match (id, title, channel, thumbnail_url) {
+                (Some(id), Some(t), Some(c), Some(thumb)) => Some(PlaylistMetadata {
                     id: id.clone(),
                     title: decode_html(t).to_string(),
                     channel: decode_html(c).to_string(),
                     url: format!("{PLAYLIST_URI}{id}"),
+                    thumbnail_url: thumb.to_string(),
                     items: VecDeque::new(),
                 }),
                 _ => None,
@@ -68,13 +84,28 @@ impl TryFrom<&SearchResult> for PlaylistMetadata {
         let metadata = value.snippet.as_ref().and_then(|snippet| {
             let title = &snippet.title;
             let channel = &snippet.channel_title;
+            let thumbnail_url = &snippet
+                .thumbnails
+                .as_ref()
+                .and_then(|details| {
+                    details
+                        .maxres
+                        .as_ref()
+                        .or_else(|| details.high.as_ref())
+                        .or_else(|| details.medium.as_ref())
+                        .or_else(|| details.standard.as_ref())
+                        .or_else(|| details.default.as_ref())
+                })
+                .and_then(|thumbnail| thumbnail.url.as_ref());
 
-            match (id, title, channel) {
-                (Some(id), Some(t), Some(c)) => Some(PlaylistMetadata {
+            trace!(title = title, channel = channel, thumbnail = thumbnail_url);
+            match (id, title, channel, thumbnail_url) {
+                (Some(id), Some(t), Some(c), Some(thumb)) => Some(PlaylistMetadata {
                     id: id.clone(),
                     title: decode_html(t).to_string(),
                     channel: decode_html(c).to_string(),
                     url: format!("{PLAYLIST_URI}{id}"),
+                    thumbnail_url: thumb.to_string(),
                     items: VecDeque::new(),
                 }),
                 _ => None,

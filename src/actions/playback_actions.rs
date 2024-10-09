@@ -1,4 +1,5 @@
 use crate::{
+    embeds,
     event_handlers::queue_handler::QueueHandler,
     models::QueueElement,
     server::{Context, ServerError},
@@ -52,7 +53,6 @@ pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), ServerError> 
                 ctx.data().guild_map.clone(),
                 manager_lock.clone(),
                 req_client.clone(),
-                //ctx.clone()
             ),
         )
         .map_err(|e| {
@@ -60,7 +60,6 @@ pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), ServerError> 
         });
 
     guild_state.playback_state.set_track_handle(Some(t_handle));
-
     Ok(())
 }
 
@@ -77,17 +76,18 @@ pub async fn add_element_to_queue(
     let guild_state = guard.entry(guild_id.to_string()).or_default();
     guild_state.playback_state.enqueue(queue_element.clone());
 
-    _ = ctx
-        .reply(format!(
-            "{} {}",
-            if guild_state.playback_state.is_playing() {
-                "Queued"
-            } else {
-                "Playing"
-            },
-            queue_element
-        ))
-        .await;
+    let embed = match queue_element {
+        QueueElement::Track(t) if guild_state.playback_state.is_playing() => {
+            embeds::create_queued_track_embed(&t)
+        }
+        QueueElement::Track(t) => embeds::create_playing_track_embed(&t),
+        QueueElement::Playlist(p) if guild_state.playback_state.is_playing() => {
+            embeds::create_queued_playlist_embed(&p)
+        }
+        QueueElement::Playlist(p) => embeds::create_playling_playlist_embed(&p),
+    };
+
+    _ = ctx.send(poise::CreateReply::default().embed(embed)).await;
 
     Ok(())
 }
@@ -100,8 +100,9 @@ pub async fn stop(ctx: &Context<'_>) -> Result<(), ServerError> {
     let mut guard = ctx.data().guild_map.write().await;
     trace!(guild_id=?guild_id, "Resetting guild state.");
 
-    if let Some(state) = guard
-        .get_mut(&guild_id.to_string()) { state.playback_state.reset() }
+    if let Some(state) = guard.get_mut(&guild_id.to_string()) {
+        state.playback_state.reset()
+    }
     drop(guard);
 
     trace!("Stopping current track.");
@@ -129,15 +130,17 @@ pub async fn pause(ctx: &Context<'_>) -> Result<(), ServerError> {
 
     let mut guard = ctx.data().guild_map.write().await;
     let guild_state = guard.get_mut(&guild_id.to_string());
-    let track_data = guild_state.map(|guild_state| (
+    let track_data = guild_state.map(|guild_state| {
+        (
             guild_state.playback_state.get_current_track().clone(),
             guild_state.playback_state.get_track_handle().clone(),
-        ));
+        )
+    });
 
     if let Some((Some(current_track), Some(track_handle))) = track_data {
         _ = track_handle.pause();
         _ = ctx
-            .reply(format!("Paused {}", current_track))
+            .send(poise::CreateReply::default().embed(embeds::create_paused_embed(&current_track)))
             .await;
     } else {
         _ = ctx.reply("Nothing is currently playing.")
@@ -153,15 +156,20 @@ pub async fn resume(ctx: &Context<'_>) -> Result<(), ServerError> {
 
     let mut guard = ctx.data().guild_map.write().await;
     let guild_state = guard.get_mut(&guild_id.to_string());
-    let track_data = guild_state.map(|guild_state| (
+    let track_data = guild_state.map(|guild_state| {
+        (
             guild_state.playback_state.get_current_track().clone(),
             guild_state.playback_state.get_track_handle().clone(),
-        ));
+        )
+    });
 
     if let Some((Some(current_track), Some(track_handle))) = track_data {
         _ = track_handle.play();
         _ = ctx
-            .reply(format!("Resumed {}", current_track))
+            .send(
+                poise::CreateReply::default()
+                    .embed(embeds::create_resume_track_embed(&current_track)),
+            )
             .await;
     } else {
         _ = ctx.reply("Nothing is currently playing.")
@@ -187,18 +195,43 @@ pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), ServerError> {
         return Ok(());
     };
 
+    let mut skipped = 1;
     for _ in 0..n - 1 {
         guild_state.playback_state.dequeue();
+        skipped += 1;
     }
 
-    let next = guild_state
-        .playback_state
-        .next()
-        .as_ref()
-        .map_or_else(|| "".to_string(), |t| format!("\n{}", t));
+    let next = guild_state.playback_state.next();
 
-    _ = ctx.reply(format!("Skipped {n} tracks.{next}")).await;
+    _ = match next {
+        Some(QueueElement::Playlist(p)) => {
+            ctx.send(
+                poise::CreateReply::default().embed(embeds::create_skip_playlist_embed(
+                    &p,
+                    skipped,
+                    guild_state.playback_state.number_of_tracks_queued(),
+                )),
+            )
+            .await
+        }
+        Some(QueueElement::Track(t)) => {
+            ctx.send(
+                poise::CreateReply::default().embed(embeds::create_skip_track_embed(
+                    &t,
+                    skipped,
+                    guild_state.playback_state.number_of_tracks_queued(),
+                )),
+            )
+            .await
+        }
+        None => {
+            ctx.reply(format!(
+                "Skipped {skipped} tracks. The queue has been exhausted."
+            ))
+            .await
+        }
+    };
+
     _ = track_handle.stop();
-
     Ok(())
 }

@@ -55,7 +55,10 @@ impl EventHandler for InactivityHandler {
             trace!("Leaving empty channel an empty voice channel. Leaving channel.");
             // We only need to leave and let the disconnect handler deal with
             // cleaning up the resources.
-            _ = self.handler.leave(self.guild_id).await
+            _ = self
+                .handler
+                .leave(self.guild_id)
+                .await
                 .map_err(|e| error!(err=%e, "Could not leave voice channel"));
         }
 

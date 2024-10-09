@@ -40,9 +40,8 @@ pub async fn url(
         }
     };
 
-    _ = ctx.defer_ephemeral().await;
-    trace!(queue_element=?queue_element, "Adding queue element to queue.");
-
+    _ = ctx.defer().await;
+    trace!(queue_element=%queue_element, "Adding queue element to queue.");
     playback_actions::add_element_to_queue(&ctx, queue_element).await?;
     playback_actions::start_queue_playback(&ctx).await?;
     Ok(())
@@ -67,32 +66,24 @@ pub async fn search(
     channel_actions::join_channel(ctx).await?;
 
     let queue_element = match resource_type {
-        Some(ResourceType::Track) | None => {
-            
-
-            ctx
-                .data()
-                .youtube_client
-                .search_video(&query)
-                .await
-                .map(QueueElement::Track)
-        }
-        Some(ResourceType::Playlist) => {
-            
-
-            ctx
-                .data()
-                .youtube_client
-                .search_playlist(&query)
-                .await
-                .map(QueueElement::Playlist)
-        }
+        Some(ResourceType::Track) | None => ctx
+            .data()
+            .youtube_client
+            .search_video(&query)
+            .await
+            .map(QueueElement::Track),
+        Some(ResourceType::Playlist) => ctx
+            .data()
+            .youtube_client
+            .search_playlist(&query)
+            .await
+            .map(QueueElement::Playlist),
     };
 
     match queue_element {
         Ok(element) => {
-            _ = ctx.defer_ephemeral().await;
-            trace!(queue_element=?element, "Adding queue element to queue.");
+            _ = ctx.defer().await;
+            trace!(queue_element=%element, "Adding queue element to queue.");
             playback_actions::add_element_to_queue(&ctx, element).await?;
         }
         Err(e) => {

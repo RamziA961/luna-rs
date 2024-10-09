@@ -46,7 +46,9 @@ impl ConfigurationVariables {
         let vars = Config::builder()
             .add_source(File::with_name(DEV_SOURCE))
             .build()
-            .unwrap_or_else(|_| panic!("Configuration file not found. {RELEASE_SOURCE} file expected."));
+            .unwrap_or_else(|_| {
+                panic!("Configuration file not found. {RELEASE_SOURCE} file expected.")
+            });
 
         let discord_token = vars
             .get_string("DISCORD_TOKEN")

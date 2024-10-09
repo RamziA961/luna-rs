@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, fmt::Display};
 
 use songbird::tracks::TrackHandle;
 use tracing::trace;
@@ -11,6 +11,19 @@ pub struct PlaybackState {
     current_track: Option<VideoMetadata>,
     track_handle: Option<TrackHandle>,
     queue: VecDeque<QueueElement>,
+}
+
+impl Display for PlaybackState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "PlaybackState {{ playing: {}, current_track: {:#?}, track_handle: {:#?}, queue: {} }}",
+            self.playing,
+            self.current_track,
+            self.track_handle,
+            self.queue.len()
+        )
+    }
 }
 
 impl PlaybackState {
@@ -62,6 +75,13 @@ impl PlaybackState {
             }
             None => None,
         }
+    }
+
+    pub fn number_of_tracks_queued(&self) -> usize {
+        self.queue.iter().fold(0, |accum, curr| match curr {
+            QueueElement::Track(_) => accum + 1,
+            QueueElement::Playlist(p) => accum + p.items.len(),
+        })
     }
 
     pub fn play_next(&mut self) {

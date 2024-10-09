@@ -10,5 +10,6 @@ use crate::{
 #[instrument(skip(ctx))]
 #[poise::command(slash_command, check = "author_in_shared_voice_channel")]
 pub async fn stop(ctx: Context<'_>) -> Result<(), ServerError> {
+    _ = ctx.defer().await;
     playback_actions::stop(&ctx).await
 }

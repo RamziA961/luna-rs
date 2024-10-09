@@ -2,7 +2,7 @@ use super::{YoutubeError, SINGLE_URI};
 use google_youtube3::api::{PlaylistItem, SearchResult, Video};
 use html_escape::decode_html_entities as decode_html;
 use std::fmt::Display;
-use tracing::{error, instrument};
+use tracing::{error, instrument, trace};
 
 #[derive(Debug, Clone)]
 pub struct VideoMetadata {
@@ -10,6 +10,7 @@ pub struct VideoMetadata {
     pub title: String,
     pub channel: String,
     pub url: String,
+    pub thumbnail_url: String,
 }
 
 impl Display for VideoMetadata {
@@ -28,13 +29,27 @@ impl TryFrom<&Video> for VideoMetadata {
         let metadata = value.snippet.as_ref().and_then(|snippet| {
             let title = &snippet.title;
             let channel = &snippet.channel_title;
+            let thumbnail_url = &snippet
+                .thumbnails
+                .as_ref()
+                .and_then(|details| {
+                    details
+                        .maxres
+                        .as_ref()
+                        .or_else(|| details.high.as_ref())
+                        .or_else(|| details.medium.as_ref())
+                        .or_else(|| details.standard.as_ref())
+                        .or_else(|| details.default.as_ref())
+                })
+                .and_then(|thumbnail| thumbnail.url.as_ref());
 
-            match (id, title, channel) {
-                (Some(id), Some(t), Some(c)) => Some(VideoMetadata {
+            match (id, title, channel, thumbnail_url) {
+                (Some(id), Some(t), Some(c), Some(thumb)) => Some(VideoMetadata {
                     id: id.clone(),
                     title: decode_html(t).to_string(),
                     channel: decode_html(c).to_string(),
                     url: format!("{SINGLE_URI}{id}"),
+                    thumbnail_url: thumb.to_string(),
                 }),
                 _ => None,
             }
@@ -60,13 +75,28 @@ impl TryFrom<&SearchResult> for VideoMetadata {
         let metadata = value.snippet.as_ref().and_then(|snippet| {
             let title = &snippet.title;
             let channel = &snippet.channel_title;
+            let thumbnail_url = &snippet
+                .thumbnails
+                .as_ref()
+                .and_then(|details| {
+                    details
+                        .maxres
+                        .as_ref()
+                        .or_else(|| details.high.as_ref())
+                        .or_else(|| details.medium.as_ref())
+                        .or_else(|| details.standard.as_ref())
+                        .or_else(|| details.default.as_ref())
+                })
+                .and_then(|thumbnail| thumbnail.url.as_ref());
 
-            match (id, title, channel) {
-                (Some(id), Some(t), Some(c)) => Some(VideoMetadata {
+            trace!(title = title, channel = channel, thumbnail = thumbnail_url);
+            match (id, title, channel, thumbnail_url) {
+                (Some(id), Some(t), Some(c), Some(thumb)) => Some(VideoMetadata {
                     id: id.clone(),
                     title: decode_html(t).to_string(),
                     channel: decode_html(c).to_string(),
                     url: format!("{SINGLE_URI}{id}"),
+                    thumbnail_url: thumb.to_string(),
                 }),
                 _ => None,
             }
@@ -90,14 +120,29 @@ impl TryFrom<&PlaylistItem> for VideoMetadata {
                 .as_ref()
                 .and_then(|resource_id| resource_id.video_id.clone());
             let title = &snippet.title;
-            let channel = &snippet.channel_title;
+            let channel = &snippet.video_owner_channel_title;
+            let thumbnail_url = &snippet
+                .thumbnails
+                .as_ref()
+                .and_then(|details| {
+                    details
+                        .maxres
+                        .as_ref()
+                        .or_else(|| details.high.as_ref())
+                        .or_else(|| details.medium.as_ref())
+                        .or_else(|| details.standard.as_ref())
+                        .or_else(|| details.default.as_ref())
+                })
+                .and_then(|thumbnail| thumbnail.url.as_ref());
 
-            match (id, title, channel) {
-                (Some(id), Some(t), Some(c)) => Some(VideoMetadata {
+            trace!(title = title, channel = channel, thumbnail = thumbnail_url);
+            match (id, title, channel, thumbnail_url) {
+                (Some(id), Some(t), Some(c), Some(thumb)) => Some(VideoMetadata {
                     id: id.clone(),
                     title: decode_html(t).to_string(),
                     channel: decode_html(c).to_string(),
                     url: format!("{}{}", SINGLE_URI, id),
+                    thumbnail_url: thumb.to_string(),
                 }),
                 _ => None,
             }

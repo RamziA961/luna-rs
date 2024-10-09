@@ -42,7 +42,7 @@ impl EventHandler for QueueHandler {
         let guild_state = guard.get_mut(&self.guild_id.to_string())?;
         guild_state.playback_state.play_next();
 
-        trace!(guild_state=?guild_state, "Modified guild state to play next track.");
+        trace!(guild_state=%guild_state, "Modified guild state to play next track.");
 
         let current_track = guild_state.playback_state.get_current_track().clone();
 

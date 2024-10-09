@@ -6,6 +6,7 @@ pub mod actions;
 pub mod checks;
 pub mod commands;
 pub mod configuration;
+pub mod embeds;
 pub mod event_handlers;
 pub mod models;
 mod server;
