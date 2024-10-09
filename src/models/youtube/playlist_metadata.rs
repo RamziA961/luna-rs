@@ -43,10 +43,10 @@ impl TryFrom<&Playlist> for PlaylistMetadata {
                     details
                         .maxres
                         .as_ref()
-                        .or_else(|| details.high.as_ref())
-                        .or_else(|| details.medium.as_ref())
-                        .or_else(|| details.standard.as_ref())
-                        .or_else(|| details.default.as_ref())
+                        .or(details.high.as_ref())
+                        .or(details.medium.as_ref())
+                        .or(details.standard.as_ref())
+                        .or(details.default.as_ref())
                 })
                 .and_then(|thumbnail| thumbnail.url.as_ref());
 
@@ -91,10 +91,10 @@ impl TryFrom<&SearchResult> for PlaylistMetadata {
                     details
                         .maxres
                         .as_ref()
-                        .or_else(|| details.high.as_ref())
-                        .or_else(|| details.medium.as_ref())
-                        .or_else(|| details.standard.as_ref())
-                        .or_else(|| details.default.as_ref())
+                        .or(details.high.as_ref())
+                        .or(details.medium.as_ref())
+                        .or(details.standard.as_ref())
+                        .or(details.default.as_ref())
                 })
                 .and_then(|thumbnail| thumbnail.url.as_ref());
 

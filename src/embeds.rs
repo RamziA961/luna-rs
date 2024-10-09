@@ -1,4 +1,4 @@
-use poise::serenity_prelude::{self, Color, CreateEmbed, Timestamp};
+use poise::serenity_prelude::{self, Color, Timestamp};
 
 use crate::models::{PlaylistMetadata, VideoMetadata};
 
@@ -12,8 +12,8 @@ fn create_playlist_embed(playlist: &PlaylistMetadata) -> serenity_prelude::Creat
     create_embed_template()
         .title(format!(
             "{} - {}",
-            playlist.title.to_string(),
-            playlist.channel.to_string()
+            playlist.title,
+            playlist.channel
         ))
         .url(playlist.url.to_string())
         .thumbnail(playlist.thumbnail_url.to_string())
@@ -23,8 +23,8 @@ fn create_track_embed(track: &VideoMetadata) -> serenity_prelude::CreateEmbed {
     create_embed_template()
         .title(format!(
             "{} - {}",
-            track.title.to_string(),
-            track.channel.to_string()
+            track.title,
+            track.channel
         ))
         .url(track.url.clone())
         .thumbnail(track.thumbnail_url.to_string())
@@ -47,9 +47,9 @@ pub fn create_playling_playlist_embed(
             "Up next:",
             format!(
                 "{} - {}\n{}",
-                first.title.to_string(),
-                first.channel.to_string(),
-                first.url.to_string(),
+                first.title,
+                first.channel,
+                first.url,
             ),
             false,
         )

@@ -207,7 +207,7 @@ pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), ServerError> {
         Some(QueueElement::Playlist(p)) => {
             ctx.send(
                 poise::CreateReply::default().embed(embeds::create_skip_playlist_embed(
-                    &p,
+                    p,
                     skipped,
                     guild_state.playback_state.number_of_tracks_queued(),
                 )),
@@ -217,7 +217,7 @@ pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), ServerError> {
         Some(QueueElement::Track(t)) => {
             ctx.send(
                 poise::CreateReply::default().embed(embeds::create_skip_track_embed(
-                    &t,
+                    t,
                     skipped,
                     guild_state.playback_state.number_of_tracks_queued(),
                 )),
