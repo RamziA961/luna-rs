@@ -16,13 +16,12 @@ async fn main() -> Result<(), ServerError> {
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::builder()
-                //.with_default_directive(LevelFilter::TRACE.into())
                 .with_default_directive(LevelFilter::INFO.into())
                 .from_env()
                 .unwrap()
                 .add_directive(
                     format!(
-                        "luna_rs_2={}",
+                        "luna_rs={}",
                         if cfg!(debug_assertions) {
                             "trace"
                         } else {
