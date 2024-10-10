@@ -10,34 +10,35 @@ use tracing::{error, instrument};
 
 #[instrument(skip_all)]
 pub async fn join_channel(ctx: Context<'_>) -> Result<(), ServerError> {
-    let guild_id = ctx.guild_id();
-
-    if guild_id.is_none() {
+    let guild_id = ctx.guild_id().ok_or_else(|| {
         error!("Could not locate voice channel. Guild ID is none");
-        return Err(ServerError::InternalError(
-            "Could not find guild information".to_string(),
-        ));
+        ServerError::InternalError("Could not find guild information".to_string())
+    })?;
+
+    if ctx
+        .data()
+        .guild_map
+        .read()
+        .await
+        .get(&guild_id.to_string())
+        .is_some()
+    {
+        return Ok(());
     }
 
-    let guild_id = guild_id.unwrap();
+    let channel_id = ctx
+        .guild()
+        .and_then(|guild| {
+            guild
+                .voice_states
+                .get(&ctx.author().id)
+                .and_then(|voice_state| voice_state.channel_id)
+        })
+        .ok_or_else(|| {
+            error!("Could not locate voice channel for Guild ID: {guild_id}");
+            ServerError::InternalError("Could not locate voice channel.".to_string())
+        })?;
 
-    let channel_id = if let Some(guild) = ctx.guild() {
-        guild
-            .voice_states
-            .get(&ctx.author().id)
-            .and_then(|voice_state| voice_state.channel_id)
-    } else {
-        None
-    };
-
-    if channel_id.is_none() {
-        error!("Could not locate voice channel for Guild ID: {guild_id}");
-        return Err(ServerError::InternalError(
-            "Could not locate voice channel.".to_string(),
-        ));
-    }
-
-    let channel_id = channel_id.unwrap();
     let manager = songbird::get(ctx.serenity_context())
         .await
         .ok_or_else(|| ServerError::InternalError("Could not find Songbird client.".to_string()))?;

@@ -18,7 +18,10 @@ pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), ServerError> 
     let req_client = &ctx.data().request_client;
     trace!("Write lock to guild map obtained.");
 
-    let guild_state = guard.get_mut(&guild_id.to_string()).unwrap();
+    let guild_state = guard.get_mut(&guild_id.to_string()).ok_or_else(|| {
+        ServerError::InternalError("Could not find guild playback information".to_string())
+    })?;
+
     if guild_state.playback_state.is_playing() {
         trace!("Playback already in progress.");
         return Ok(());
@@ -87,8 +90,7 @@ pub async fn add_element_to_queue(
         QueueElement::Playlist(p) => embeds::create_playling_playlist_embed(&p),
     };
 
-    _ = ctx.send(poise::CreateReply::default().embed(embed)).await;
-
+    ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
@@ -112,12 +114,11 @@ pub async fn stop(ctx: &Context<'_>) -> Result<(), ServerError> {
 
     if let Some(handle) = handler {
         handle.lock().await.stop();
-        _ = ctx
-            .reply("Halted playback and reset the track queue.")
-            .await;
+        ctx.reply("Halted playback and reset the track queue.")
+            .await?;
     } else {
         trace!("Nothing currently playing.");
-        _ = ctx.reply("Nothing is currently playing").await;
+        ctx.reply("Nothing is currently playing.").await?;
     }
 
     Ok(())
@@ -139,11 +140,10 @@ pub async fn pause(ctx: &Context<'_>) -> Result<(), ServerError> {
 
     if let Some((Some(current_track), Some(track_handle))) = track_data {
         _ = track_handle.pause();
-        _ = ctx
-            .send(poise::CreateReply::default().embed(embeds::create_paused_embed(&current_track)))
-            .await;
+        ctx.send(poise::CreateReply::default().embed(embeds::create_paused_embed(&current_track)))
+            .await?;
     } else {
-        _ = ctx.reply("Nothing is currently playing.")
+        ctx.reply("Nothing is currently playing.").await?;
     }
 
     Ok(())
@@ -165,14 +165,12 @@ pub async fn resume(ctx: &Context<'_>) -> Result<(), ServerError> {
 
     if let Some((Some(current_track), Some(track_handle))) = track_data {
         _ = track_handle.play();
-        _ = ctx
-            .send(
-                poise::CreateReply::default()
-                    .embed(embeds::create_resume_track_embed(&current_track)),
-            )
-            .await;
+        ctx.send(
+            poise::CreateReply::default().embed(embeds::create_resume_track_embed(&current_track)),
+        )
+        .await?;
     } else {
-        _ = ctx.reply("Nothing is currently playing.")
+        ctx.reply("Nothing is currently playing.").await?;
     }
 
     Ok(())
@@ -233,5 +231,35 @@ pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), ServerError> {
     };
 
     _ = track_handle.stop();
+    Ok(())
+}
+
+pub async fn show_queue(ctx: &Context<'_>) -> Result<(), ServerError> {
+    let guild_id = ctx.guild_id().ok_or_else(|| {
+        ServerError::InternalError("Could not find guild information".to_string())
+    })?;
+
+    let mut guard = ctx.data().guild_map.write().await;
+    let guild_state = guard.get_mut(&guild_id.to_string()).ok_or_else(|| {
+        ServerError::InternalError("Could not find guild playback information".to_string())
+    })?;
+
+    let next_tracks = guild_state.playback_state.next_items_queued(5);
+    let n_tracks = guild_state.playback_state.number_of_tracks_queued();
+    let n_items = guild_state.playback_state.number_of_items_queued();
+
+    if n_items == 0 {
+        ctx.reply("The queue is empty.").await?;
+    } else {
+        ctx.send(
+            poise::CreateReply::default().embed(embeds::create_queue_overview_embed(
+                &next_tracks,
+                n_tracks,
+                n_items,
+            )),
+        )
+        .await?;
+    }
+
     Ok(())
 }

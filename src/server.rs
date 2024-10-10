@@ -61,6 +61,7 @@ impl Server {
                 commands: vec![
                     commands::pause::pause(),
                     commands::play::play(),
+                    commands::queue::queue(),
                     commands::resume::resume(),
                     commands::skip::skip(),
                     commands::stop::stop(),

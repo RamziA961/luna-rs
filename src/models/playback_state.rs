@@ -84,6 +84,14 @@ impl PlaybackState {
         })
     }
 
+    pub fn number_of_items_queued(&self) -> usize {
+        self.queue.len()
+    }
+
+    pub fn next_items_queued(&self, n: usize) -> Vec<&QueueElement> {
+        self.queue.iter().take(n).collect()
+    }
+
     pub fn play_next(&mut self) {
         let next = self.dequeue();
         trace!(next_track=?next);
