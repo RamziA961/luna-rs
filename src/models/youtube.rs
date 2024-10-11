@@ -35,6 +35,9 @@ pub enum YoutubeError {
 
     #[error("Invalid Youtube URL provided.")]
     UrlError,
+
+    #[error("Unsupported Error: {0}")]
+    UnsupportedError(String)
 }
 
 #[derive(Clone)]

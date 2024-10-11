@@ -11,6 +11,6 @@ use crate::{
     check = "author_in_shared_voice_channel"
 )]
 pub async fn resume(ctx: Context<'_>) -> Result<(), ServerError> {
-    _ = ctx.defer().await;
+    ctx.defer().await?;
     playback_actions::resume(&ctx).await
 }

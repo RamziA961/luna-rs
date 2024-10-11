@@ -30,17 +30,18 @@ pub async fn url(
     #[description = "URL of the desired resource."] path: String,
 ) -> Result<(), ServerError> {
     channel_actions::join_channel(ctx).await?;
+    ctx.defer().await?;
+
     let metadata = ctx.data().youtube_client.process_url(&path).await;
 
     let queue_element = match metadata {
         Ok(m) => QueueElement::from(m),
         Err(e) => {
-            _ = ctx.reply(e.to_string()).await;
+            ctx.reply(e.to_string()).await?;
             return Ok(());
         }
     };
 
-    _ = ctx.defer().await;
     trace!(queue_element=%queue_element, "Adding queue element to queue.");
     playback_actions::add_element_to_queue(&ctx, queue_element).await?;
     playback_actions::start_queue_playback(&ctx).await?;
@@ -64,6 +65,7 @@ pub async fn search(
     #[description = "Search query to the requested track or playlist."] query: String,
 ) -> Result<(), ServerError> {
     channel_actions::join_channel(ctx).await?;
+    ctx.defer().await?;
 
     let queue_element = match resource_type {
         Some(ResourceType::Track) | None => ctx
@@ -82,12 +84,11 @@ pub async fn search(
 
     match queue_element {
         Ok(element) => {
-            _ = ctx.defer().await;
             trace!(queue_element=%element, "Adding queue element to queue.");
             playback_actions::add_element_to_queue(&ctx, element).await?;
         }
         Err(e) => {
-            _ = ctx.reply(e.to_string()).await;
+            ctx.reply(e.to_string()).await?;
         }
     };
 

@@ -4,6 +4,7 @@ use crate::{
     server::{Context, ServerError},
 };
 
+/// Display the next items in the queue.
 #[poise::command(
     slash_command,
     check = "author_in_voice_channel",
