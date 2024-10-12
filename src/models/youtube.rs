@@ -22,6 +22,8 @@ pub enum YoutubeMetadata {
 const SINGLE_URI: &str = "https://youtube.com/watch?v=";
 const PLAYLIST_URI: &str = "https://youtube.com/playlist?list=";
 
+const PLAYLIST_CAP: usize = 700;
+
 #[derive(thiserror::Error, Debug)]
 pub enum YoutubeError {
     #[error("Failed to extract video information from results.")]
@@ -37,7 +39,7 @@ pub enum YoutubeError {
     UrlError,
 
     #[error("Unsupported Error: {0}")]
-    UnsupportedError(String)
+    UnsupportedError(String),
 }
 
 #[derive(Clone)]
@@ -298,14 +300,15 @@ impl YoutubeClient {
                 }
             }
 
-            if let Some(pg_token) = next_page_token {
-                (_, response_items) = create_request()
-                    .page_token(pg_token)
-                    .doit()
-                    .await
-                    .map_err(YoutubeError::ApiError)?
-            } else {
-                break;
+            match next_page_token {
+                Some(pg_token) if playlst_items.len() < PLAYLIST_CAP => {
+                    (_, response_items) = create_request()
+                        .page_token(pg_token)
+                        .doit()
+                        .await
+                        .map_err(YoutubeError::ApiError)?;
+                }
+                _ => break,
             }
         }
 

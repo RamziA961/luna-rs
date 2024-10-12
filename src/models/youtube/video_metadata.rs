@@ -25,13 +25,23 @@ impl TryFrom<&Video> for VideoMetadata {
     #[instrument]
     fn try_from(value: &Video) -> Result<Self, Self::Error> {
         let id = &value.id;
-        
-        let is_live = value.snippet.as_ref()
-            .and_then(|snippet| snippet.live_broadcast_content.clone())
-            .is_some();
+
+        let is_live = value
+            .snippet
+            .as_ref()
+            .map(|snippet| {
+                snippet
+                    .live_broadcast_content
+                    .as_ref()
+                    .is_some_and(|v| v != "none")
+            })
+            .unwrap_or(false);
 
         if is_live {
-            return Err(YoutubeError::UnsupportedError("Live streams are not support yet.".to_string()));
+            trace!("Live stream detected.");
+            return Err(YoutubeError::UnsupportedError(
+                "Live streams are not support yet.".to_string(),
+            ));
         }
 
         let metadata = value.snippet.as_ref().and_then(|snippet| {
@@ -80,12 +90,22 @@ impl TryFrom<&SearchResult> for VideoMetadata {
             .as_ref()
             .and_then(|resource_id| resource_id.video_id.clone());
 
-        let is_live = value.snippet.as_ref()
-            .and_then(|snippet| snippet.live_broadcast_content.clone())
-            .is_some();
+        let is_live = value
+            .snippet
+            .as_ref()
+            .map(|snippet| {
+                snippet
+                    .live_broadcast_content
+                    .as_ref()
+                    .is_some_and(|v| v != "none")
+            })
+            .unwrap_or(false);
 
         if is_live {
-            return Err(YoutubeError::UnsupportedError("Live streams are not support yet.".to_string()));
+            trace!("Live stream detected.");
+            return Err(YoutubeError::UnsupportedError(
+                "Live streams are not support yet.".to_string(),
+            ));
         }
 
         let metadata = value.snippet.as_ref().and_then(|snippet| {

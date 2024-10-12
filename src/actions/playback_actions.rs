@@ -11,15 +11,20 @@ use tracing::{error, instrument, trace};
 pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), ServerError> {
     trace!("Attempting to start queue playback");
     let guild_id = ctx.guild_id().ok_or_else(|| {
-        ServerError::InternalError("Could not find guild information".to_string())
+        ServerError::InternalError("Could not find guild information.".to_string())
     })?;
+
+    let channel = ctx
+        .guild_channel()
+        .await
+        .ok_or_else(|| ServerError::InternalError("Could not obtain guild channel.".to_string()))?;
 
     let mut guard = ctx.data().guild_map.write().await;
     let req_client = &ctx.data().request_client;
     trace!("Write lock to guild map obtained.");
 
     let guild_state = guard.get_mut(&guild_id.to_string()).ok_or_else(|| {
-        ServerError::InternalError("Could not find guild playback information".to_string())
+        ServerError::InternalError("Could not find guild playback information.".to_string())
     })?;
 
     if guild_state.playback_state.is_playing() {
@@ -52,7 +57,9 @@ pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), ServerError> 
         .add_event(
             Event::Track(TrackEvent::End),
             QueueHandler::new(
+                ctx.serenity_context().clone(),
                 &guild_id,
+                channel,
                 ctx.data().guild_map.clone(),
                 manager_lock.clone(),
                 req_client.clone(),
@@ -189,7 +196,7 @@ pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), ServerError> {
     let track_handle = if let Some(handle) = guild_state.playback_state.get_track_handle().clone() {
         handle
     } else {
-        _ = ctx.reply("The queue is empty.").await;
+        ctx.reply("The queue is empty.").await?;
         return Ok(());
     };
 
@@ -201,7 +208,7 @@ pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), ServerError> {
 
     let next = guild_state.playback_state.next();
 
-    _ = match next {
+    match next {
         Some(QueueElement::Playlist(p)) => {
             ctx.send(
                 poise::CreateReply::default().embed(embeds::create_skip_playlist_embed(
@@ -228,7 +235,7 @@ pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), ServerError> {
             ))
             .await
         }
-    };
+    }?;
 
     _ = track_handle.stop();
     Ok(())
