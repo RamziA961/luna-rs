@@ -1,4 +1,4 @@
-use poise::serenity_prelude::{self, Color, Timestamp};
+use poise::serenity_prelude::{self, Color, CreateEmbedAuthor, CreateEmbedFooter, Timestamp};
 
 use crate::models::{PlaylistMetadata, QueueElement, VideoMetadata};
 
@@ -129,4 +129,19 @@ pub fn create_queue_overview_embed(
         .title("Song Queue")
         .field("Queued Items", n_items.to_string(), true)
         .field("Queued Tracks", n_tracks.to_string(), true)
+}
+
+pub fn create_ask_embed(model_name: &str, response: &str) -> serenity_prelude::CreateEmbed {
+    create_embed_template()
+        .author(
+            CreateEmbedAuthor::new(format!("{model_name} [experimental feature]"))
+                .icon_url("https://www.gstatic.com/lamda/images/gemini_home_icon_8d62f72e7aae54b6859f1.png")
+                .url("https://gemini.google.com/app")
+        )
+        .field(
+            "Disclaimer",
+            "Responses given by Gemini do not represent the views of the author of this bot. Please read the following article on algorithmic bias: https://en.wikipedia.org/wiki/Algorithmic_bias",
+            false
+        )
+        .description(response)
 }

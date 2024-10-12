@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1.83"
 config = "0.14.0"
+google-generative-ai-rs = "0.3.2"
 google-youtube3 = "5.0.5"
 html-escape = "0.2.13"
 hyper = { version = "^0.14", features = ["client", "http1"] }

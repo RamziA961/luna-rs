@@ -7,6 +7,7 @@ const DEV_SOURCE: &str = "Secrets.dev.toml";
 pub struct ConfigurationVariables {
     discord_token: String,
     youtube_api_key: String,
+    gemini_api_key: String,
     #[cfg(debug_assertions)]
     dev_guild_id: usize,
 }
@@ -35,9 +36,14 @@ impl ConfigurationVariables {
             .get_string("YOUTUBE_API_KEY")
             .expect("Expected YOUTUBE_API_KEY.");
 
+        let gemini_api_key = vars
+            .get_string("GEMINI_API_KEY")
+            .expect("Expected GEMINI_API_KEY.");
+
         Self {
             discord_token,
             youtube_api_key,
+            gemini_api_key,
         }
     }
 
@@ -58,12 +64,17 @@ impl ConfigurationVariables {
             .get_string("YOUTUBE_API_KEY")
             .expect("Expected YOUTUBE_API_KEY.");
 
+        let gemini_api_key = vars
+            .get_string("GEMINI_API_KEY")
+            .expect("Expected GEMINI_API_KEY.");
+
         let dev_guild_id = vars.get::<usize>("GUILD_ID").expect("Expected GUILD_ID.");
 
         Self {
             discord_token,
             youtube_api_key,
             dev_guild_id,
+            gemini_api_key,
         }
     }
 
@@ -73,6 +84,10 @@ impl ConfigurationVariables {
 
     pub fn youtube_api_key(&self) -> &str {
         &self.youtube_api_key
+    }
+
+    pub fn gemini_api_key(&self) -> &str {
+        &self.gemini_api_key
     }
 
     #[cfg(debug_assertions)]

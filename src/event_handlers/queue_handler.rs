@@ -67,10 +67,7 @@ impl EventHandler for QueueHandler {
             );
 
             _ = t_handle
-                .add_event(
-                    Event::Track(songbird::TrackEvent::End),
-                    self.clone(), 
-                )
+                .add_event(Event::Track(songbird::TrackEvent::End), self.clone())
                 .map_err(|e| {
                     error!(err=%e, "Failed to add event handler.");
                 });
