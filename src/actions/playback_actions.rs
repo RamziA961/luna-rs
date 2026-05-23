@@ -47,7 +47,11 @@ pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), ServerError> 
 
     let manager_lock = manager.get_or_insert(guild_id);
     trace!("Commencing download and audio conversion of video.");
-    let t = songbird::input::YoutubeDl::new(req_client.clone(), url);
+    let t = songbird::input::YoutubeDl::new(
+        //"yt-dlp --cookies-from-browser"
+        req_client.clone(),
+        url,
+    );
 
     let mut guard = manager_lock.lock().await;
     trace!("Attempting to play converted track.");

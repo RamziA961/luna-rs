@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use poise::serenity_prelude::{self, model::channel, CacheHttp, GuildChannel, GuildId};
+use poise::serenity_prelude::{self, CacheHttp, GuildChannel, GuildId};
 use songbird::{Event, EventContext, EventHandler};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, RwLock};

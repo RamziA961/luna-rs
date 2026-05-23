@@ -60,7 +60,6 @@ impl Server {
             .options(poise::FrameworkOptions {
                 on_error: |err| Box::pin(Self::error_handler(err)),
                 commands: vec![
-                    commands::ask::ask(),
                     commands::pause::pause(),
                     commands::play::play(),
                     commands::queue::queue(),
@@ -73,16 +72,21 @@ impl Server {
             })
             .setup(move |ctx, _, fw| {
                 Box::pin(async move {
-                    let registration_res = if cfg!(debug_assertions) {
-                        poise::builtins::register_in_guild(
-                            &ctx.http,
-                            &fw.options().commands,
-                            serenity_prelude::GuildId::new(guild_id),
-                        )
-                        .await
-                    } else {
-                        poise::builtins::register_globally(ctx, &fw.options().commands).await
-                    };
+                    rustls::crypto::ring::default_provider()
+                        .install_default()
+                        .expect("Failed to install rustls crypto provider");
+
+                    #[cfg(debug_assertions)]
+                    let registration_res = poise::builtins::register_in_guild(
+                        &ctx.http,
+                        &fw.options().commands,
+                        serenity_prelude::GuildId::new(guild_id),
+                    )
+                    .await;
+
+                    #[cfg(not(debug_assertions))]
+                    let registration_res =
+                        poise::builtins::register_globally(ctx, &fw.options().commands).await;
 
                     registration_res.map_err(|e| {
                         error!(e=%e, "Command registration failed.");
@@ -90,7 +94,7 @@ impl Server {
                     })?;
 
                     Ok(ServerState {
-                        youtube_client: models::YoutubeClient::new(vars.youtube_api_key()),
+                        youtube_client: models::YoutubeClient::new(vars.youtube_api_key()).await,
                         gemini_client: models::GeminiClient::new(vars.gemini_api_key()),
                         request_client: reqwest::Client::new(),
                         configuration_variables: vars,

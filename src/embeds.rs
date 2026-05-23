@@ -1,4 +1,4 @@
-use poise::serenity_prelude::{self, Color, CreateEmbedAuthor, CreateEmbedFooter, Timestamp};
+use poise::serenity_prelude::{self, Color, CreateEmbedAuthor, Timestamp};
 
 use crate::models::{PlaylistMetadata, QueueElement, VideoMetadata};
 
@@ -82,7 +82,7 @@ pub fn create_paused_embed(track: &VideoMetadata) -> serenity_prelude::CreateEmb
 }
 
 pub fn create_queue_overview_embed(
-    next_tracks: &Vec<&QueueElement>,
+    next_tracks: &[&QueueElement],
     n_tracks: usize,
     n_items: usize,
 ) -> serenity_prelude::CreateEmbed {

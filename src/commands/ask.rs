@@ -10,7 +10,7 @@ use crate::{
 #[poise::command(slash_command)]
 pub async fn ask(
     ctx: Context<'_>,
-    #[description = "Prompt for Gemini."] prompt: String,
+    #[description = "Text prompt for Gemini."] prompt: String,
 ) -> Result<(), ServerError> {
     ctx.defer().await?;
 

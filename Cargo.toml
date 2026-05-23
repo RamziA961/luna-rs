@@ -5,14 +5,16 @@ edition = "2021"
 
 [dependencies]
 async-trait = "0.1.83"
+chrono = { version = "0.4.38", features = ["serde"] }
 config = "0.14.0"
-google-generative-ai-rs = "0.3.2"
-google-youtube3 = "5.0.5"
+google-generative-ai-rs = { version = "0.3.2", features = ["beta"] }
+google-youtube3 = "6.0.0"
 html-escape = "0.2.13"
 hyper = { version = "^0.14", features = ["client", "http1"] }
 hyper-rustls = "0.27.3"
 poise = "0.6.1"
 reqwest = "^0.11"
+rustls = "0.23.25"
 songbird = "0.4.3"
 symphonia = { version = "0.5.4", features = ["all"] }
 thiserror = "1.0.63"

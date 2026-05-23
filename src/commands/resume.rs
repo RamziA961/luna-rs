@@ -4,7 +4,7 @@ use crate::{
     server::{Context, ServerError},
 };
 
-// Resume a paused track.
+/// Resume a paused track.
 #[poise::command(
     slash_command,
     check = "author_in_voice_channel",

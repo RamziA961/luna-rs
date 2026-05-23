@@ -9,6 +9,7 @@ impl EventHandler for ErrorHandler {
     #[instrument(skip(self))]
     async fn act(&self, _e: &EventContext<'_>) -> Option<Event> {
         error!("Error detected. Error handler called to action.");
+
         None
     }
 }

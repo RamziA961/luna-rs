@@ -1,9 +1,13 @@
+use google_youtube3::hyper_rustls;
 use google_youtube3::{
-    client::NoToken,
-    hyper_rustls::{self, HttpsConnector},
+    common::NoToken,
+    hyper_rustls::HttpsConnector,
+    hyper_util::{
+        client::legacy::{connect::HttpConnector, Client},
+        rt::TokioExecutor,
+    },
     YouTube,
 };
-use hyper::client::HttpConnector;
 use std::fmt::Debug;
 use tracing::{error, info, instrument, trace};
 
@@ -55,7 +59,8 @@ impl Debug for YoutubeClient {
 }
 
 impl YoutubeClient {
-    pub fn new(api_key: &str) -> Self {
+    pub async fn new(api_key: &str) -> Self {
+        let client = Client::builder(TokioExecutor::new());
         let connector = hyper_rustls::HttpsConnectorBuilder::new()
             .with_native_roots()
             .unwrap()
@@ -63,11 +68,12 @@ impl YoutubeClient {
             .enable_http1()
             .build();
 
-        let client = hyper::Client::builder().build(connector);
+        let client = client.build(connector);
+        let hub = YouTube::new(client, NoToken);
 
         Self {
             api_key: api_key.to_string(),
-            client: YouTube::new(client, NoToken),
+            client: hub,
         }
     }
 

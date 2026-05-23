@@ -8,18 +8,13 @@ pub enum GeminiError {
     #[error("No Response Error")]
     NoResponseError,
 
-    #[error("{0}")]
-    ApiError(errors::GoogleAPIError),
-}
-
-impl From<errors::GoogleAPIError> for GeminiError {
-    fn from(value: errors::GoogleAPIError) -> Self {
-        Self::ApiError(value)
-    }
+    #[error("Google API Error: {}", ._0.message)]
+    ApiError(#[from] errors::GoogleAPIError),
 }
 
 #[derive(Clone)]
 pub struct GeminiClient {
+    #[allow(dead_code)]
     api_key: String,
     client: Arc<api::Client>,
 }
@@ -47,14 +42,12 @@ impl GeminiClient {
         let request = gemini::request::Request {
             contents: vec![gemini::Content {
                 role: gemini::Role::User,
-                parts: vec![
-                    gemini::Part {
-                        text: Some(format!("Answer the following using less than 3500 characters into total, including whitespace and new line characters. {prompt}")),
-                        file_data: None,
-                        inline_data: None,
-                        video_metadata: None,
-                    }
-                ]
+                parts: vec![gemini::Part {
+                    text: Some(prompt.to_string()),
+                    file_data: None,
+                    inline_data: None,
+                    video_metadata: None,
+                }],
             }],
             tools: vec![],
             safety_settings: vec![],
@@ -65,7 +58,20 @@ impl GeminiClient {
                 candidate_count: Some(1),
                 max_output_tokens: None,
                 stop_sequences: None,
+                response_mime_type: Some("text/plain".to_string()),
             }),
+            system_instruction: None, /*Some(gemini::request::SystemInstructionContent {
+                                          parts: vec![
+                                              gemini::request::SystemInstructionPart {
+                                                  //.
+                                                  text: Some("You are friendly but skeptical of Western hegemony and attempt to reply to questions without a Western bias" .to_string())
+
+                                              },
+                                              gemini::request::SystemInstructionPart {
+                                                  text: Some("All of your responses are limited to 3,500 characters".to_string())
+                                              }
+                                          ]
+                                      }),*/
         };
 
         self.client
@@ -81,10 +87,10 @@ impl GeminiClient {
                     .iter()
                     .filter_map(|p| p.text.clone())
                     .reduce(|mut accum, curr| {
-                        accum.extend(curr.chars());
+                        accum.push_str(&curr);
                         accum
                     })
             })
-            .ok_or_else(|| GeminiError::NoResponseError)
+            .ok_or(GeminiError::NoResponseError)
     }
 }
