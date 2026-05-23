@@ -11,7 +11,7 @@ pub async fn author_in_voice_channel(ctx: Context<'_>) -> Result<bool, ServerErr
     match is_in_vc {
         None => {
             error!("Could not validate if author in voice channel.");
-            Err(ServerError::InternalError(
+            Err(ServerError::Internal(
                 "Could not validate if author in voice channel.".to_string(),
             ))
         }

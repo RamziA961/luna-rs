@@ -12,7 +12,7 @@ use tracing::{error, instrument};
 pub async fn join_channel(ctx: Context<'_>) -> Result<(), ServerError> {
     let guild_id = ctx.guild_id().ok_or_else(|| {
         error!("Could not locate voice channel. Guild ID is none");
-        ServerError::InternalError("Could not find guild information".to_string())
+        ServerError::Internal("Could not find guild information".to_string())
     })?;
 
     if ctx
@@ -36,12 +36,12 @@ pub async fn join_channel(ctx: Context<'_>) -> Result<(), ServerError> {
         })
         .ok_or_else(|| {
             error!("Could not locate voice channel for Guild ID: {guild_id}");
-            ServerError::InternalError("Could not locate voice channel.".to_string())
+            ServerError::Internal("Could not locate voice channel.".to_string())
         })?;
 
     let manager = songbird::get(ctx.serenity_context())
         .await
-        .ok_or_else(|| ServerError::InternalError("Could not find Songbird client.".to_string()))?;
+        .ok_or_else(|| ServerError::Internal("Could not find Songbird client.".to_string()))?;
 
     let join_result = manager.join(guild_id, channel_id).await;
 
@@ -68,7 +68,7 @@ pub async fn join_channel(ctx: Context<'_>) -> Result<(), ServerError> {
         }
         Err(e) => {
             error!(e=%e, "Could not join voice channel {channel_id} in guild {guild_id}");
-            Err(ServerError::PermissionsError(format!(
+            Err(ServerError::Permissions(format!(
                 "Sorry {}. I couldn't join your voice channel.\
                     Please ensure that I have the permissions needed to join.",
                 ctx.author().name

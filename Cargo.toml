@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 async-trait = "0.1.83"
-chrono = { version = "0.4.38", features = ["serde"] }
 config = "0.14.0"
 google-generative-ai-rs = { version = "0.3.2", features = ["beta"] }
 google-youtube3 = "6.0.0"

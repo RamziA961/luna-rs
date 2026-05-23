@@ -12,28 +12,27 @@ pub struct ServerState {
     pub configuration_variables: ConfigurationVariables,
     pub request_client: reqwest::Client,
     pub youtube_client: models::YoutubeClient,
-    pub gemini_client: models::GeminiClient,
     pub guild_map: Arc<RwLock<HashMap<String, models::GuildState>>>,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ServerError {
     #[error("Whoops, an internal error occurred: {0}")]
-    InternalError(String),
+    Internal(String),
 
     #[error("Permissions Error: {0}")]
-    PermissionsError(String),
+    Permissions(String),
 
     #[error("Unimplemented Error: Sorry this feature is planned but not implemented yet.")]
-    UnimplementedError,
+    Unimplemented,
 }
 
 impl From<poise::serenity_prelude::Error> for ServerError {
     fn from(value: poise::serenity_prelude::Error) -> Self {
         if cfg!(debug_assertions) {
-            ServerError::InternalError(value.to_string())
+            ServerError::Internal(value.to_string())
         } else {
-            ServerError::InternalError("Fatal error".to_string())
+            ServerError::Internal("Fatal error".to_string())
         }
     }
 }
@@ -90,12 +89,11 @@ impl Server {
 
                     registration_res.map_err(|e| {
                         error!(e=%e, "Command registration failed.");
-                        ServerError::InternalError(e.to_string())
+                        ServerError::Internal(e.to_string())
                     })?;
 
                     Ok(ServerState {
                         youtube_client: models::YoutubeClient::new(vars.youtube_api_key()).await,
-                        gemini_client: models::GeminiClient::new(vars.gemini_api_key()),
                         request_client: reqwest::Client::new(),
                         configuration_variables: vars,
                         guild_map: Arc::new(RwLock::new(HashMap::new())),
@@ -116,7 +114,7 @@ impl Server {
     pub async fn start(&mut self) -> Result<(), ServerError> {
         self.serenity_client.start().await.map_err(|e| {
             error!(err=%e, "Failed to start server.");
-            ServerError::InternalError(e.to_string())
+            ServerError::Internal(e.to_string())
         })
     }
 

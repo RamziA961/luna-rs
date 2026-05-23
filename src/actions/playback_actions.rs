@@ -10,21 +10,21 @@ use tracing::{error, instrument, trace};
 #[instrument(skip(ctx))]
 pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), ServerError> {
     trace!("Attempting to start queue playback");
-    let guild_id = ctx.guild_id().ok_or_else(|| {
-        ServerError::InternalError("Could not find guild information.".to_string())
-    })?;
+    let guild_id = ctx
+        .guild_id()
+        .ok_or_else(|| ServerError::Internal("Could not find guild information.".to_string()))?;
 
     let channel = ctx
         .guild_channel()
         .await
-        .ok_or_else(|| ServerError::InternalError("Could not obtain guild channel.".to_string()))?;
+        .ok_or_else(|| ServerError::Internal("Could not obtain guild channel.".to_string()))?;
 
     let mut guard = ctx.data().guild_map.write().await;
     let req_client = &ctx.data().request_client;
     trace!("Write lock to guild map obtained.");
 
     let guild_state = guard.get_mut(&guild_id.to_string()).ok_or_else(|| {
-        ServerError::InternalError("Could not find guild playback information.".to_string())
+        ServerError::Internal("Could not find guild playback information.".to_string())
     })?;
 
     if guild_state.playback_state.is_playing() {
@@ -42,7 +42,7 @@ pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), ServerError> 
 
     let manager = songbird::get(ctx.serenity_context()).await.ok_or_else(|| {
         error!("Failed to get songbird manager from context.");
-        ServerError::InternalError("Unable to begin playback.".to_string())
+        ServerError::Internal("Unable to begin playback.".to_string())
     })?;
 
     let manager_lock = manager.get_or_insert(guild_id);
@@ -82,9 +82,9 @@ pub async fn add_element_to_queue(
     ctx: &Context<'_>,
     queue_element: QueueElement,
 ) -> Result<(), ServerError> {
-    let guild_id = ctx.guild_id().ok_or_else(|| {
-        ServerError::InternalError("Could not find guild information".to_string())
-    })?;
+    let guild_id = ctx
+        .guild_id()
+        .ok_or_else(|| ServerError::Internal("Could not find guild information".to_string()))?;
 
     let mut guard = ctx.data().guild_map.write().await;
     let guild_state = guard.entry(guild_id.to_string()).or_default();
@@ -106,9 +106,9 @@ pub async fn add_element_to_queue(
 }
 
 pub async fn stop(ctx: &Context<'_>) -> Result<(), ServerError> {
-    let guild_id = ctx.guild_id().ok_or_else(|| {
-        ServerError::InternalError("Could not find guild information".to_string())
-    })?;
+    let guild_id = ctx
+        .guild_id()
+        .ok_or_else(|| ServerError::Internal("Could not find guild information".to_string()))?;
 
     let mut guard = ctx.data().guild_map.write().await;
     trace!(guild_id=?guild_id, "Resetting guild state.");
@@ -136,9 +136,9 @@ pub async fn stop(ctx: &Context<'_>) -> Result<(), ServerError> {
 }
 
 pub async fn pause(ctx: &Context<'_>) -> Result<(), ServerError> {
-    let guild_id = ctx.guild_id().ok_or_else(|| {
-        ServerError::InternalError("Could not find guild information".to_string())
-    })?;
+    let guild_id = ctx
+        .guild_id()
+        .ok_or_else(|| ServerError::Internal("Could not find guild information".to_string()))?;
 
     let mut guard = ctx.data().guild_map.write().await;
     let guild_state = guard.get_mut(&guild_id.to_string());
@@ -161,9 +161,9 @@ pub async fn pause(ctx: &Context<'_>) -> Result<(), ServerError> {
 }
 
 pub async fn resume(ctx: &Context<'_>) -> Result<(), ServerError> {
-    let guild_id = ctx.guild_id().ok_or_else(|| {
-        ServerError::InternalError("Could not find guild information".to_string())
-    })?;
+    let guild_id = ctx
+        .guild_id()
+        .ok_or_else(|| ServerError::Internal("Could not find guild information".to_string()))?;
 
     let mut guard = ctx.data().guild_map.write().await;
     let guild_state = guard.get_mut(&guild_id.to_string());
@@ -188,13 +188,13 @@ pub async fn resume(ctx: &Context<'_>) -> Result<(), ServerError> {
 }
 
 pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), ServerError> {
-    let guild_id = ctx.guild_id().ok_or_else(|| {
-        ServerError::InternalError("Could not find guild information".to_string())
-    })?;
+    let guild_id = ctx
+        .guild_id()
+        .ok_or_else(|| ServerError::Internal("Could not find guild information".to_string()))?;
 
     let mut guard = ctx.data().guild_map.write().await;
     let guild_state = guard.get_mut(&guild_id.to_string()).ok_or_else(|| {
-        ServerError::InternalError("Could not find guild playback information".to_string())
+        ServerError::Internal("Could not find guild playback information".to_string())
     })?;
 
     let track_handle = if let Some(handle) = guild_state.playback_state.get_track_handle().clone() {
@@ -246,13 +246,13 @@ pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), ServerError> {
 }
 
 pub async fn show_queue(ctx: &Context<'_>) -> Result<(), ServerError> {
-    let guild_id = ctx.guild_id().ok_or_else(|| {
-        ServerError::InternalError("Could not find guild information".to_string())
-    })?;
+    let guild_id = ctx
+        .guild_id()
+        .ok_or_else(|| ServerError::Internal("Could not find guild information".to_string()))?;
 
     let mut guard = ctx.data().guild_map.write().await;
     let guild_state = guard.get_mut(&guild_id.to_string()).ok_or_else(|| {
-        ServerError::InternalError("Could not find guild playback information".to_string())
+        ServerError::Internal("Could not find guild playback information".to_string())
     })?;
 
     let next_tracks = guild_state.playback_state.next_items_queued(5);
