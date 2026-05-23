@@ -12,12 +12,12 @@ google-youtube3 = "6.0.0"
 html-escape = "0.2.13"
 hyper = { version = "^0.14", features = ["client", "http1"] }
 hyper-rustls = "0.27.3"
-poise = "0.6.1"
-reqwest = "^0.11"
+poise = "0.6.2"
+reqwest = "0.12.9"
 rustls = "0.23.25"
-songbird = "0.4.3"
-symphonia = { version = "0.5.4", features = ["all"] }
-thiserror = "1.0.63"
+songbird = "0.6.0"
+symphonia = { version = "0.6.0", features = ["all"] }
+thiserror = "2.0.18"
 tokio = { version = "1.40.0", features = ["rt-multi-thread", "macros"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

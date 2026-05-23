@@ -39,7 +39,7 @@ impl TryFrom<&Video> for VideoMetadata {
 
         if is_live {
             trace!("Live stream detected.");
-            return Err(YoutubeError::UnsupportedError(
+            return Err(YoutubeError::Unsupport(
                 "Live streams are not support yet.".to_string(),
             ));
         }
@@ -75,7 +75,7 @@ impl TryFrom<&Video> for VideoMetadata {
 
         metadata.ok_or_else(|| {
             error!("Video to VideoMetadata conversion failed.");
-            YoutubeError::ConversionError
+            YoutubeError::Conversion
         })
     }
 }
@@ -103,7 +103,7 @@ impl TryFrom<&SearchResult> for VideoMetadata {
 
         if is_live {
             trace!("Live stream detected.");
-            return Err(YoutubeError::UnsupportedError(
+            return Err(YoutubeError::Unsupport(
                 "Live streams are not support yet.".to_string(),
             ));
         }
@@ -140,7 +140,7 @@ impl TryFrom<&SearchResult> for VideoMetadata {
 
         metadata.ok_or_else(|| {
             error!("SearchResult to VideoMetadata conversion failed.");
-            YoutubeError::ConversionError
+            YoutubeError::Conversion
         })
     }
 }
@@ -186,7 +186,7 @@ impl TryFrom<&PlaylistItem> for VideoMetadata {
 
         metadata.ok_or_else(|| {
             error!("PlaylistItem to VideoMetadata conversion failed.");
-            YoutubeError::ConversionError
+            YoutubeError::Conversion
         })
     }
 }

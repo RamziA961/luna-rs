@@ -66,7 +66,7 @@ impl TryFrom<&Playlist> for PlaylistMetadata {
 
         metadata.ok_or_else(|| {
             error!("Playlist to PlaylistMetadata conversion failed.");
-            YoutubeError::ConversionError
+            YoutubeError::Conversion
         })
     }
 }
@@ -114,7 +114,7 @@ impl TryFrom<&SearchResult> for PlaylistMetadata {
 
         metadata.ok_or_else(|| {
             error!("SearchResult to PlaylistMetadata conversion failed.");
-            YoutubeError::ConversionError
+            YoutubeError::Conversion
         })
     }
 }

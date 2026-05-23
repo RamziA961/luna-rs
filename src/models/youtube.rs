@@ -31,19 +31,19 @@ const PLAYLIST_CAP: usize = 700;
 #[derive(thiserror::Error, Debug)]
 pub enum YoutubeError {
     #[error("Failed to extract video information from results.")]
-    ConversionError,
+    Conversion,
 
     #[error("Requested resource not found.")]
-    NotFoundError,
+    NotFoundE,
 
     #[error("{0}")]
-    ApiError(google_youtube3::Error),
+    Api(google_youtube3::Error),
 
     #[error("Invalid Youtube URL provided.")]
-    UrlError,
+    Url,
 
     #[error("Unsupported Error: {0}")]
-    UnsupportedError(String),
+    Unsupport(String),
 }
 
 #[derive(Clone)]
@@ -82,7 +82,7 @@ impl YoutubeClient {
         trace!("Processing URL.");
         let path = url::Url::parse(url).map_err(|e| {
             trace!(err=%e, "Could not parse URL.");
-            YoutubeError::UrlError
+            YoutubeError::Url
         })?;
 
         match path.domain() {
@@ -100,7 +100,7 @@ impl YoutubeClient {
                     Ok(YoutubeMetadata::Playlist(metadata))
                 } else {
                     trace!("Video and Playlist ID could be extracted from URL.");
-                    Err(YoutubeError::UrlError)
+                    Err(YoutubeError::Url)
                 }
             }
             Some("www.youtu.be") if Self::validate_shareable_url(&path) => {
@@ -111,12 +111,12 @@ impl YoutubeClient {
                     Ok(YoutubeMetadata::Track(metadata))
                 } else {
                     trace!("Video could be extracted from URL.");
-                    Err(YoutubeError::UrlError)
+                    Err(YoutubeError::Url)
                 }
             }
             _ => {
                 trace!(url=?path, "Reporting URL as error.");
-                Err(YoutubeError::UrlError)
+                Err(YoutubeError::Url)
             }
         }
     }
@@ -143,14 +143,14 @@ impl YoutubeClient {
                     .and_then(|items| items.first())
                     .ok_or_else(|| {
                         info!("Failed to find video resource with given search query.");
-                        YoutubeError::NotFoundError
+                        YoutubeError::NotFoundE
                     })?;
 
                 VideoMetadata::try_from(top_result)
             }
             Err(e) => {
                 error!(err=%e, "Failed searching for video resource.");
-                Err(YoutubeError::ApiError(e))
+                Err(YoutubeError::Api(e))
             }
         }
     }
@@ -177,7 +177,7 @@ impl YoutubeClient {
                     .and_then(|items| items.first())
                     .ok_or_else(|| {
                         info!("Failed to find playlist matching given query");
-                        YoutubeError::NotFoundError
+                        YoutubeError::NotFoundE
                     })?;
 
                 let mut metadata = PlaylistMetadata::try_from(top_result)?;
@@ -188,7 +188,7 @@ impl YoutubeClient {
             }
             Err(e) => {
                 error!(err=%e, "Failed searching for playlist resource.");
-                Err(YoutubeError::ApiError(e))
+                Err(YoutubeError::Api(e))
             }
         }
     }
@@ -212,14 +212,14 @@ impl YoutubeClient {
                     .and_then(|items| items.first())
                     .ok_or_else(|| {
                         error!("Failed to requested video resource by ID.");
-                        YoutubeError::NotFoundError
+                        YoutubeError::NotFoundE
                     })?;
 
                 VideoMetadata::try_from(video)
             }
             Err(e) => {
                 error!(err=%e, "Error fetching resource.");
-                Err(YoutubeError::ApiError(e))
+                Err(YoutubeError::Api(e))
             }
         }
     }
@@ -251,7 +251,7 @@ impl YoutubeClient {
                     .and_then(|items| items.first())
                     .ok_or_else(|| {
                         error!("Failed to requested playlist resource by ID.");
-                        YoutubeError::NotFoundError
+                        YoutubeError::NotFoundE
                     })?;
 
                 let mut metadata = PlaylistMetadata::try_from(playlist)?;
@@ -261,7 +261,7 @@ impl YoutubeClient {
             (playlist_result, item_result) => {
                 if let Err(e) = playlist_result {
                     error!(err=%e, "Error fetching playlist resource.");
-                    Err(YoutubeError::ApiError(e))
+                    Err(YoutubeError::Api(e))
                 } else if let Err(e) = item_result {
                     Err(e)
                 } else {
@@ -284,10 +284,7 @@ impl YoutubeClient {
                 .max_results(50)
         };
 
-        let (_, mut response_items) = create_request()
-            .doit()
-            .await
-            .map_err(YoutubeError::ApiError)?;
+        let (_, mut response_items) = create_request().doit().await.map_err(YoutubeError::Api)?;
 
         let mut playlst_items = vec![];
 
@@ -312,7 +309,7 @@ impl YoutubeClient {
                         .page_token(pg_token)
                         .doit()
                         .await
-                        .map_err(YoutubeError::ApiError)?;
+                        .map_err(YoutubeError::Api)?;
                 }
                 _ => break,
             }
