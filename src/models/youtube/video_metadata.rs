@@ -39,7 +39,7 @@ impl TryFrom<&Video> for VideoMetadata {
 
         if is_live {
             trace!("Live stream detected.");
-            return Err(YoutubeError::Unsupport(
+            return Err(YoutubeError::Unsupported(
                 "Live streams are not support yet.".to_string(),
             ));
         }
@@ -103,7 +103,7 @@ impl TryFrom<&SearchResult> for VideoMetadata {
 
         if is_live {
             trace!("Live stream detected.");
-            return Err(YoutubeError::Unsupport(
+            return Err(YoutubeError::Unsupported(
                 "Live streams are not support yet.".to_string(),
             ));
         }

@@ -34,7 +34,7 @@ pub enum YoutubeError {
     Conversion,
 
     #[error("Requested resource not found.")]
-    NotFoundE,
+    NotFound,
 
     #[error("{0}")]
     Api(google_youtube3::Error),
@@ -43,7 +43,7 @@ pub enum YoutubeError {
     Url,
 
     #[error("Unsupported Error: {0}")]
-    Unsupport(String),
+    Unsupported(String),
 }
 
 #[derive(Clone)]
@@ -143,7 +143,7 @@ impl YoutubeClient {
                     .and_then(|items| items.first())
                     .ok_or_else(|| {
                         info!("Failed to find video resource with given search query.");
-                        YoutubeError::NotFoundE
+                        YoutubeError::NotFound
                     })?;
 
                 VideoMetadata::try_from(top_result)
@@ -177,7 +177,7 @@ impl YoutubeClient {
                     .and_then(|items| items.first())
                     .ok_or_else(|| {
                         info!("Failed to find playlist matching given query");
-                        YoutubeError::NotFoundE
+                        YoutubeError::NotFound
                     })?;
 
                 let mut metadata = PlaylistMetadata::try_from(top_result)?;
@@ -212,7 +212,7 @@ impl YoutubeClient {
                     .and_then(|items| items.first())
                     .ok_or_else(|| {
                         error!("Failed to requested video resource by ID.");
-                        YoutubeError::NotFoundE
+                        YoutubeError::NotFound
                     })?;
 
                 VideoMetadata::try_from(video)
@@ -251,7 +251,7 @@ impl YoutubeClient {
                     .and_then(|items| items.first())
                     .ok_or_else(|| {
                         error!("Failed to requested playlist resource by ID.");
-                        YoutubeError::NotFoundE
+                        YoutubeError::NotFound
                     })?;
 
                 let mut metadata = PlaylistMetadata::try_from(playlist)?;
