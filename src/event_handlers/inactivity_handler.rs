@@ -29,8 +29,6 @@ impl InactivityHandler {
 impl EventHandler for InactivityHandler {
     #[instrument(skip_all, fields(guild_id = %self.guild_id))]
     async fn act(&self, _e: &EventContext<'_>) -> Option<Event> {
-        // Evaluate everything cleanly inside a dedicated synchronous scope block.
-        // This ensures the non-Send cache types drop *before* any .await boundary.
         let should_leave = {
             let guild = self.cache.guild(self.guild_id)?;
 
