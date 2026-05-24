@@ -88,8 +88,8 @@ impl PlaybackState {
         self.queue.len()
     }
 
-    pub fn next_items_queued(&self, n: usize) -> Vec<&QueueElement> {
-        self.queue.iter().take(n).collect()
+    pub fn next_items_queued(&self, n: usize) -> Vec<QueueElement> {
+        self.queue.iter().take(n).cloned().collect()
     }
 
     pub fn play_next(&mut self) {

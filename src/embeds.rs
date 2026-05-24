@@ -82,7 +82,7 @@ pub fn create_paused_embed(track: &VideoMetadata) -> serenity_prelude::CreateEmb
 }
 
 pub fn create_queue_overview_embed(
-    next_tracks: &[&QueueElement],
+    next_tracks: &[QueueElement],
     n_tracks: usize,
     n_items: usize,
 ) -> serenity_prelude::CreateEmbed {
