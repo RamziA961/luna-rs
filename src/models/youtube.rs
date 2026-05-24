@@ -1,12 +1,12 @@
 use google_youtube3::hyper_rustls;
 use google_youtube3::{
+    YouTube,
     common::NoToken,
     hyper_rustls::HttpsConnector,
     hyper_util::{
-        client::legacy::{connect::HttpConnector, Client},
+        client::legacy::{Client, connect::HttpConnector},
         rt::TokioExecutor,
     },
-    YouTube,
 };
 use std::fmt::Debug;
 use tracing::{error, info, instrument, trace};
@@ -85,7 +85,7 @@ impl YoutubeClient {
             YoutubeError::Url
         })?;
 
-        // 1. Attempt to extract a video ID first
+        // Attempt to extract a video ID first
         if let Some(id) = Self::extract_video_id(&parsed_url) {
             trace!(video_id=%id, "URL designated as video.");
             let metadata = self.get_video_metadata(&id).await?;
@@ -93,7 +93,7 @@ impl YoutubeClient {
             return Ok(YoutubeMetadata::Track(metadata));
         }
 
-        // 2. Fallback to attempting to extract a playlist ID
+        // Fallback to attempting to extract a playlist ID
         if let Some(id) = Self::extract_playlist_id(&parsed_url) {
             trace!(playlist_id=%id, "URL designated as playlist.");
             let metadata = self.get_playlist_metadata(&id).await?;
@@ -101,7 +101,7 @@ impl YoutubeClient {
             return Ok(YoutubeMetadata::Playlist(metadata));
         }
 
-        // 3. If neither worked, the URL format is unsupported
+        // If neither worked, the URL format is unsupported
         trace!(url=?parsed_url, "Reporting URL as error.");
         Err(YoutubeError::Url)
     }
@@ -319,10 +319,10 @@ impl YoutubeClient {
             return None;
         }
 
-        if let Some((_, arg)) = url.query_pairs().find(|(q, _)| q == "v") {
-            if arg.len() == 11 {
-                return Some(arg.into_owned());
-            }
+        if let Some((_, arg)) = url.query_pairs().find(|(q, _)| q == "v")
+            && arg.len() == 11
+        {
+            return Some(arg.into_owned());
         }
 
         let mut segments = url.path_segments()?;

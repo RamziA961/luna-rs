@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{commands, configuration::ConfigurationVariables, models};
-use poise::{serenity_prelude, FrameworkError};
+use poise::{FrameworkError, serenity_prelude};
 use tokio::sync::RwLock;
 use tracing::{error, info};
 
@@ -153,10 +153,10 @@ impl Server {
             FrameworkError::EventHandler { error, event, .. } => {
                 error!(event=?event.snake_case_name(), "Event handler failed: {}", error);
             }
-            FrameworkError::CommandCheckFailed { error, ctx, .. } => {
-                if let Some(error) = error {
-                    _ = ctx.reply(error.to_string()).await;
-                }
+            FrameworkError::CommandCheckFailed { ref error, ctx, .. }
+                if let Some(error) = error =>
+            {
+                _ = ctx.reply(error.to_string()).await;
             }
             _ => {}
         }
