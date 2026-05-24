@@ -11,6 +11,7 @@ use google_youtube3::{
 use std::fmt::Debug;
 use tracing::{error, info, instrument, trace};
 
+mod metadata_utils;
 pub mod playlist_metadata;
 pub mod video_metadata;
 
@@ -54,7 +55,9 @@ pub struct YoutubeClient {
 
 impl Debug for YoutubeClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "YoutubeClient {{ client: <...> }}")
+        f.debug_struct("YoutubeClient")
+            .field("client", &"<...>")
+            .finish_non_exhaustive()
     }
 }
 
@@ -106,110 +109,99 @@ impl YoutubeClient {
         Err(YoutubeError::Url)
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     pub async fn search_video(&self, query: &str) -> Result<VideoMetadata, YoutubeError> {
         trace!("Searching for video");
-        let request = self
+        let (_, list) = self
             .client
             .search()
             .list(&vec!["snippet".to_string()])
             .q(query)
             .param("key", &self.api_key)
             .add_type("video")
-            .max_results(1);
-
-        let response = request.doit().await;
-
-        match response {
-            Ok((_, list)) => {
-                let top_result = list
-                    .items
-                    .as_ref()
-                    .and_then(|items| items.first())
-                    .ok_or_else(|| {
-                        info!("Failed to find video resource with given search query.");
-                        YoutubeError::NotFound
-                    })?;
-
-                VideoMetadata::try_from(top_result)
-            }
-            Err(e) => {
+            .max_results(1)
+            .doit()
+            .await
+            .map_err(|e| {
                 error!(err=%e, "Failed searching for video resource.");
-                Err(YoutubeError::Api(e))
-            }
-        }
+                YoutubeError::Api(e)
+            })?;
+
+        let top_result = list
+            .items
+            .as_ref()
+            .and_then(|items| items.first())
+            .ok_or_else(|| {
+                info!("Failed to find video resource with given search query.");
+                YoutubeError::NotFound
+            })?;
+
+        VideoMetadata::try_from(top_result)
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     pub async fn search_playlist(&self, query: &str) -> Result<PlaylistMetadata, YoutubeError> {
         trace!("Searching for playlist");
-        let request = self
+        let (_, list) = self
             .client
             .search()
             .list(&vec!["snippet".to_string()])
             .q(query)
             .param("key", &self.api_key)
             .add_type("playlist")
-            .max_results(1);
-
-        let response = request.doit().await;
-
-        match response {
-            Ok((_, list)) => {
-                let top_result = list
-                    .items
-                    .as_ref()
-                    .and_then(|items| items.first())
-                    .ok_or_else(|| {
-                        info!("Failed to find playlist matching given query");
-                        YoutubeError::NotFound
-                    })?;
-
-                let mut metadata = PlaylistMetadata::try_from(top_result)?;
-                let items = self.fetch_playlist_items(&metadata.id).await?;
-                metadata.items.extend(items.into_iter());
-
-                Ok(metadata)
-            }
-            Err(e) => {
+            .max_results(1)
+            .doit()
+            .await
+            .map_err(|e| {
                 error!(err=%e, "Failed searching for playlist resource.");
-                Err(YoutubeError::Api(e))
-            }
-        }
+                YoutubeError::Api(e)
+            })?;
+
+        let top_result = list
+            .items
+            .as_ref()
+            .and_then(|items| items.first())
+            .ok_or_else(|| {
+                info!("Failed to find playlist matching given query");
+                YoutubeError::NotFound
+            })?;
+
+        let mut metadata = PlaylistMetadata::try_from(top_result)?;
+        let items = self.fetch_playlist_items(&metadata.id).await?;
+        metadata.items.extend(items);
+
+        Ok(metadata)
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     pub async fn get_video_metadata(&self, video_id: &str) -> Result<VideoMetadata, YoutubeError> {
         trace!("Requested video metadata");
-        let request = self
+        let (_, list) = self
             .client
             .videos()
             .list(&vec!["snippet".to_string()])
             .add_id(video_id)
-            .param("key", &self.api_key);
-        let response = request.doit().await;
-
-        match response {
-            Ok((_, list)) => {
-                let video = list
-                    .items
-                    .as_ref()
-                    .and_then(|items| items.first())
-                    .ok_or_else(|| {
-                        error!("Failed to requested video resource by ID.");
-                        YoutubeError::NotFound
-                    })?;
-
-                VideoMetadata::try_from(video)
-            }
-            Err(e) => {
+            .param("key", &self.api_key)
+            .doit()
+            .await
+            .map_err(|e| {
                 error!(err=%e, "Error fetching resource.");
-                Err(YoutubeError::Api(e))
-            }
-        }
+                YoutubeError::Api(e)
+            })?;
+
+        let video = list
+            .items
+            .as_ref()
+            .and_then(|items| items.first())
+            .ok_or_else(|| {
+                error!("Failed to requested video resource by ID.");
+                YoutubeError::NotFound
+            })?;
+
+        VideoMetadata::try_from(video)
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     pub async fn get_playlist_metadata(
         &self,
         playlist_id: &str,
@@ -223,84 +215,77 @@ impl YoutubeClient {
             .param("key", &self.api_key)
             .max_results(1);
 
-        let (playlist_response, items_response) = tokio::join!(
+        // Run concurrently
+        let (playlist_res, items_res) = tokio::join!(
             metadata_request.doit(),
             self.fetch_playlist_items(playlist_id)
         );
 
-        match (playlist_response, items_response) {
-            (Ok((_, list)), Ok(items)) => {
-                let playlist = list
-                    .items
-                    .as_ref()
-                    .and_then(|items| items.first())
-                    .ok_or_else(|| {
-                        error!("Failed to requested playlist resource by ID.");
-                        YoutubeError::NotFound
-                    })?;
+        // Map and clean up
+        let (_, list) = playlist_res.map_err(|e| {
+            error!(err=%e, "Error fetching playlist resource.");
+            YoutubeError::Api(e)
+        })?;
 
-                let mut metadata = PlaylistMetadata::try_from(playlist)?;
-                metadata.items.extend(items.into_iter());
-                Ok(metadata)
-            }
-            (playlist_result, item_result) => {
-                if let Err(e) = playlist_result {
-                    error!(err=%e, "Error fetching playlist resource.");
-                    Err(YoutubeError::Api(e))
-                } else if let Err(e) = item_result {
-                    Err(e)
-                } else {
-                    unreachable!("One or both of the above is an error.")
-                }
-            }
-        }
+        let items = items_res?;
+
+        let playlist = list
+            .items
+            .as_ref()
+            .and_then(|items| items.first())
+            .ok_or_else(|| {
+                error!("Failed to requested playlist resource by ID.");
+                YoutubeError::NotFound
+            })?;
+
+        let mut metadata = PlaylistMetadata::try_from(playlist)?;
+        metadata.items.extend(items);
+        Ok(metadata)
     }
 
     async fn fetch_playlist_items(
         &self,
         playlist_id: &str,
     ) -> Result<Vec<VideoMetadata>, YoutubeError> {
-        let create_request = || {
-            self.client
+        let mut page_token: Option<String> = None;
+        let mut playlist_items = Vec::new();
+
+        loop {
+            let mut request = self
+                .client
                 .playlist_items()
                 .list(&vec!["snippet".to_string()])
                 .playlist_id(playlist_id)
                 .param("key", &self.api_key)
-                .max_results(50)
-        };
+                .max_results(50);
 
-        let (_, mut response_items) = create_request().doit().await.map_err(YoutubeError::Api)?;
-
-        let mut playlst_items = vec![];
-
-        loop {
-            let next_page_token = &response_items.next_page_token;
-
-            if let Some(items) = &response_items.items {
-                for item in items {
-                    let metadata = VideoMetadata::try_from(item);
-
-                    if let Ok(metadata) = metadata {
-                        playlst_items.push(metadata);
-                    } else {
-                        trace!("Skipped playlist item");
-                    }
-                }
+            if let Some(ref token) = page_token {
+                request = request.page_token(token);
             }
 
-            match next_page_token {
-                Some(pg_token) if playlst_items.len() < PLAYLIST_CAP => {
-                    (_, response_items) = create_request()
-                        .page_token(pg_token)
-                        .doit()
-                        .await
-                        .map_err(YoutubeError::Api)?;
-                }
-                _ => break,
+            let (_, response) = request.doit().await.map_err(YoutubeError::Api)?;
+
+            if let Some(items) = response.items {
+                let valid_metadata = items.into_iter().filter_map(|item| {
+                    VideoMetadata::try_from(&item)
+                        .map_err(|_| trace!("Skipped playlist item"))
+                        .ok()
+                });
+                playlist_items.extend(valid_metadata);
             }
+
+            let Some(next_token) = response.next_page_token else {
+                break;
+            };
+
+            if playlist_items.len() >= PLAYLIST_CAP {
+                break;
+            }
+
+            page_token = Some(next_token);
         }
 
-        Ok(playlst_items)
+        Ok(playlist_items)
     }
 
     /// Robustly extracts a YouTube video ID from various URL formats.

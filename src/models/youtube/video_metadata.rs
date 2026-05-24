@@ -1,6 +1,5 @@
-use super::{YoutubeError, SINGLE_URI};
+use super::{YoutubeError, metadata_utils};
 use google_youtube3::api::{PlaylistItem, SearchResult, Video};
-use html_escape::decode_html_entities as decode_html;
 use std::fmt::Display;
 use tracing::{error, instrument, trace};
 
@@ -22,58 +21,24 @@ impl Display for VideoMetadata {
 impl TryFrom<&Video> for VideoMetadata {
     type Error = YoutubeError;
 
-    #[instrument]
+    #[instrument(skip_all)]
     fn try_from(value: &Video) -> Result<Self, Self::Error> {
-        let id = &value.id;
+        let snippet = value.snippet.as_ref().ok_or(YoutubeError::Conversion)?;
 
-        let is_live = value
-            .snippet
-            .as_ref()
-            .map(|snippet| {
-                snippet
-                    .live_broadcast_content
-                    .as_ref()
-                    .is_some_and(|v| v != "none")
-            })
-            .unwrap_or(false);
-
-        if is_live {
+        if metadata_utils::is_live_stream(snippet.live_broadcast_content.as_ref()) {
             trace!("Live stream detected.");
             return Err(YoutubeError::Unsupported(
-                "Live streams are not support yet.".to_string(),
+                "Live streams are not supported yet.".to_string(),
             ));
         }
 
-        let metadata = value.snippet.as_ref().and_then(|snippet| {
-            let title = &snippet.title;
-            let channel = &snippet.channel_title;
-            let thumbnail_url = &snippet
-                .thumbnails
-                .as_ref()
-                .and_then(|details| {
-                    details
-                        .maxres
-                        .as_ref()
-                        .or(details.high.as_ref())
-                        .or(details.medium.as_ref())
-                        .or(details.standard.as_ref())
-                        .or(details.default.as_ref())
-                })
-                .and_then(|thumbnail| thumbnail.url.as_ref());
-
-            match (id, title, channel, thumbnail_url) {
-                (Some(id), Some(t), Some(c), Some(thumb)) => Some(VideoMetadata {
-                    id: id.clone(),
-                    title: decode_html(t).to_string(),
-                    channel: decode_html(c).to_string(),
-                    url: format!("{SINGLE_URI}{id}"),
-                    thumbnail_url: thumb.to_string(),
-                }),
-                _ => None,
-            }
-        });
-
-        metadata.ok_or_else(|| {
+        metadata_utils::assemble_metadata(
+            value.id.as_deref(),
+            snippet.title.as_deref(),
+            snippet.channel_title.as_deref(),
+            metadata_utils::extract_thumbnail(snippet.thumbnails.as_ref()),
+        )
+        .ok_or_else(|| {
             error!("Video to VideoMetadata conversion failed.");
             YoutubeError::Conversion
         })
@@ -83,62 +48,26 @@ impl TryFrom<&Video> for VideoMetadata {
 impl TryFrom<&SearchResult> for VideoMetadata {
     type Error = YoutubeError;
 
-    #[instrument]
+    #[instrument(skip_all)]
     fn try_from(value: &SearchResult) -> Result<Self, Self::Error> {
-        let id = &value
-            .id
-            .as_ref()
-            .and_then(|resource_id| resource_id.video_id.clone());
+        let snippet = value.snippet.as_ref().ok_or(YoutubeError::Conversion)?;
 
-        let is_live = value
-            .snippet
-            .as_ref()
-            .map(|snippet| {
-                snippet
-                    .live_broadcast_content
-                    .as_ref()
-                    .is_some_and(|v| v != "none")
-            })
-            .unwrap_or(false);
-
-        if is_live {
+        if metadata_utils::is_live_stream(snippet.live_broadcast_content.as_ref()) {
             trace!("Live stream detected.");
             return Err(YoutubeError::Unsupported(
-                "Live streams are not support yet.".to_string(),
+                "Live streams are not supported yet.".to_string(),
             ));
         }
 
-        let metadata = value.snippet.as_ref().and_then(|snippet| {
-            let title = &snippet.title;
-            let channel = &snippet.channel_title;
-            let thumbnail_url = &snippet
-                .thumbnails
-                .as_ref()
-                .and_then(|details| {
-                    details
-                        .maxres
-                        .as_ref()
-                        .or(details.high.as_ref())
-                        .or(details.medium.as_ref())
-                        .or(details.standard.as_ref())
-                        .or(details.default.as_ref())
-                })
-                .and_then(|thumbnail| thumbnail.url.as_ref());
+        let video_id = value.id.as_ref().and_then(|id| id.video_id.as_deref());
 
-            trace!(title = title, channel = channel, thumbnail = thumbnail_url);
-            match (id, title, channel, thumbnail_url) {
-                (Some(id), Some(t), Some(c), Some(thumb)) => Some(VideoMetadata {
-                    id: id.clone(),
-                    title: decode_html(t).to_string(),
-                    channel: decode_html(c).to_string(),
-                    url: format!("{SINGLE_URI}{id}"),
-                    thumbnail_url: thumb.to_string(),
-                }),
-                _ => None,
-            }
-        });
-
-        metadata.ok_or_else(|| {
+        metadata_utils::assemble_metadata(
+            video_id,
+            snippet.title.as_deref(),
+            snippet.channel_title.as_deref(),
+            metadata_utils::extract_thumbnail(snippet.thumbnails.as_ref()),
+        )
+        .ok_or_else(|| {
             error!("SearchResult to VideoMetadata conversion failed.");
             YoutubeError::Conversion
         })
@@ -148,43 +77,22 @@ impl TryFrom<&SearchResult> for VideoMetadata {
 impl TryFrom<&PlaylistItem> for VideoMetadata {
     type Error = YoutubeError;
 
-    #[instrument]
+    #[instrument(skip_all)]
     fn try_from(value: &PlaylistItem) -> Result<Self, Self::Error> {
-        let metadata = value.snippet.as_ref().and_then(|snippet| {
-            let id = &snippet
-                .resource_id
-                .as_ref()
-                .and_then(|resource_id| resource_id.video_id.clone());
-            let title = &snippet.title;
-            let channel = &snippet.video_owner_channel_title;
-            let thumbnail_url = &snippet
-                .thumbnails
-                .as_ref()
-                .and_then(|details| {
-                    details
-                        .maxres
-                        .as_ref()
-                        .or(details.high.as_ref())
-                        .or(details.medium.as_ref())
-                        .or(details.standard.as_ref())
-                        .or(details.default.as_ref())
-                })
-                .and_then(|thumbnail| thumbnail.url.as_ref());
+        let snippet = value.snippet.as_ref().ok_or(YoutubeError::Conversion)?;
 
-            trace!(title = title, channel = channel, thumbnail = thumbnail_url);
-            match (id, title, channel, thumbnail_url) {
-                (Some(id), Some(t), Some(c), Some(thumb)) => Some(VideoMetadata {
-                    id: id.clone(),
-                    title: decode_html(t).to_string(),
-                    channel: decode_html(c).to_string(),
-                    url: format!("{}{}", SINGLE_URI, id),
-                    thumbnail_url: thumb.to_string(),
-                }),
-                _ => None,
-            }
-        });
+        let video_id = snippet
+            .resource_id
+            .as_ref()
+            .and_then(|res| res.video_id.as_deref());
 
-        metadata.ok_or_else(|| {
+        metadata_utils::assemble_metadata(
+            video_id,
+            snippet.title.as_deref(),
+            snippet.video_owner_channel_title.as_deref(),
+            metadata_utils::extract_thumbnail(snippet.thumbnails.as_ref()),
+        )
+        .ok_or_else(|| {
             error!("PlaylistItem to VideoMetadata conversion failed.");
             YoutubeError::Conversion
         })
