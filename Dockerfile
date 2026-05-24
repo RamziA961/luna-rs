@@ -34,19 +34,28 @@ FROM alpine:3.19
 ARG BUILD_PROFILE
 WORKDIR /app
 
+SHELL ["/bin/ash", "-o", "pipefail", "-c"]
+
 RUN apk add --no-cache \
   ca-certificates \
   openssl \
   ffmpeg \
   python3 \
   yt-dlp \
-  curl
+  curl \
+  unzip \
+  bash
 
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH="/root/.bun/bin:${PATH}"
 
 RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
   && chmod a+rx /usr/local/bin/yt-dlp
 
-RUN yt-dlp --version
+RUN yt-dlp --version && bun --version
+
+RUN mkdir -p /etc/yt-dlp \
+  && echo "--js-runtime bun" > /etc/yt-dlp/config
 
 COPY --from=builder /volume/target/output/${BUILD_PROFILE}/luna-rs .
 COPY Secrets*.toml ./
