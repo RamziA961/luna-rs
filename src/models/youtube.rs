@@ -26,7 +26,7 @@ pub enum YoutubeMetadata {
 const SINGLE_URI: &str = "https://youtube.com/watch?v=";
 const PLAYLIST_URI: &str = "https://youtube.com/playlist?list=";
 
-const PLAYLIST_CAP: usize = 700;
+const PLAYLIST_CAP: usize = 50;
 
 #[derive(thiserror::Error, Debug)]
 pub enum YoutubeError {
@@ -80,45 +80,30 @@ impl YoutubeClient {
     #[instrument]
     pub async fn process_url(&self, url: &str) -> Result<YoutubeMetadata, YoutubeError> {
         trace!("Processing URL.");
-        let path = url::Url::parse(url).map_err(|e| {
+        let parsed_url = url::Url::parse(url).map_err(|e| {
             trace!(err=%e, "Could not parse URL.");
             YoutubeError::Url
         })?;
 
-        match path.domain() {
-            Some("www.youtube.com") if Self::validate_standard_url(&path) => {
-                trace!("Standard URL matched.");
-                if let Some(id) = Self::extract_track_id_from_standard_url(&path) {
-                    trace!("URL designated as video.");
-                    let metadata = self.get_video_metadata(&id).await?;
-                    trace!(metadata=%metadata, "Video metadata retrieved.");
-                    Ok(YoutubeMetadata::Track(metadata))
-                } else if let Some(id) = Self::extract_playlist_id_from_standard_url(&path) {
-                    trace!("URL designated as playlist.");
-                    let metadata = self.get_playlist_metadata(&id).await?;
-                    trace!(metadata=%metadata, "Playlist metadata retrieved.");
-                    Ok(YoutubeMetadata::Playlist(metadata))
-                } else {
-                    trace!("Video and Playlist ID could be extracted from URL.");
-                    Err(YoutubeError::Url)
-                }
-            }
-            Some("www.youtu.be") if Self::validate_shareable_url(&path) => {
-                trace!("Shareable URL matched.");
-                if let Some(id) = Self::extract_track_id_from_shareable_url(&path) {
-                    let metadata = self.get_video_metadata(&id).await?;
-                    trace!(metadata=%metadata, "Video metadata retrieved.");
-                    Ok(YoutubeMetadata::Track(metadata))
-                } else {
-                    trace!("Video could be extracted from URL.");
-                    Err(YoutubeError::Url)
-                }
-            }
-            _ => {
-                trace!(url=?path, "Reporting URL as error.");
-                Err(YoutubeError::Url)
-            }
+        // 1. Attempt to extract a video ID first
+        if let Some(id) = Self::extract_video_id(&parsed_url) {
+            trace!(video_id=%id, "URL designated as video.");
+            let metadata = self.get_video_metadata(&id).await?;
+            trace!(metadata=%metadata, "Video metadata retrieved.");
+            return Ok(YoutubeMetadata::Track(metadata));
         }
+
+        // 2. Fallback to attempting to extract a playlist ID
+        if let Some(id) = Self::extract_playlist_id(&parsed_url) {
+            trace!(playlist_id=%id, "URL designated as playlist.");
+            let metadata = self.get_playlist_metadata(&id).await?;
+            trace!(metadata=%metadata, "Playlist metadata retrieved.");
+            return Ok(YoutubeMetadata::Playlist(metadata));
+        }
+
+        // 3. If neither worked, the URL format is unsupported
+        trace!(url=?parsed_url, "Reporting URL as error.");
+        Err(YoutubeError::Url)
     }
 
     #[instrument]
@@ -318,55 +303,52 @@ impl YoutubeClient {
         Ok(playlst_items)
     }
 
-    fn extract_track_id_from_standard_url(url: &url::Url) -> Option<String> {
-        url.query_pairs()
-            .find(|(q, _)| q == "v")
-            .and_then(|(_, arg)| {
-                if arg.len() == 11 {
-                    Some(arg.to_string())
-                } else {
-                    None
-                }
-            })
+    /// Robustly extracts a YouTube video ID from various URL formats.
+    fn extract_video_id(url: &url::Url) -> Option<String> {
+        let domain = url.domain().unwrap_or("");
+
+        if domain == "youtu.be" {
+            return url
+                .path_segments()?
+                .next()
+                .filter(|id| id.len() == 11)
+                .map(String::from);
+        }
+
+        if domain != "youtube.com" && !domain.ends_with(".youtube.com") {
+            return None;
+        }
+
+        if let Some((_, arg)) = url.query_pairs().find(|(q, _)| q == "v") {
+            if arg.len() == 11 {
+                return Some(arg.into_owned());
+            }
+        }
+
+        let mut segments = url.path_segments()?;
+        let prefix = segments.next()?;
+
+        if matches!(prefix, "shorts" | "embed" | "v" | "live") {
+            return segments
+                .next()
+                .filter(|id| id.len() == 11)
+                .map(String::from);
+        }
+
+        None
     }
 
-    fn extract_track_id_from_shareable_url(url: &url::Url) -> Option<String> {
-        // skip starting '/'
-        let id = url.path().chars().skip(1).collect::<String>();
-        if id.len() == 11 {
-            Some(id)
+    /// Extracts a playlist ID, supports Mixes and Albums.
+    fn extract_playlist_id(url: &url::Url) -> Option<String> {
+        let domain = url.domain().unwrap_or("");
+
+        // Playlists are almost exclusively on the main domain or subdomains
+        if domain == "youtube.com" || domain.ends_with(".youtube.com") {
+            url.query_pairs()
+                .find(|(q, _)| q == "list")
+                .map(|(_, arg)| arg.into_owned())
         } else {
             None
         }
-    }
-
-    fn extract_playlist_id_from_standard_url(url: &url::Url) -> Option<String> {
-        url.query_pairs()
-            .find(|(q, _)| q == "list")
-            .and_then(|(_, arg)| {
-                let valid_prefix = arg.chars().take(2).collect::<String>() == "PL";
-
-                if arg.len() == 34 && valid_prefix {
-                    Some(arg.to_string())
-                } else {
-                    None
-                }
-            })
-    }
-
-    // Validate youtube.com style url
-    fn validate_standard_url(url: &url::Url) -> bool {
-        match url.path() {
-            "/watch" => {
-                // ignore playlist portion
-                Self::extract_track_id_from_standard_url(url).is_some()
-            }
-            "/playlist" => Self::extract_playlist_id_from_standard_url(url).is_some(),
-            _ => false,
-        }
-    }
-
-    fn validate_shareable_url(url: &url::Url) -> bool {
-        Self::extract_track_id_from_shareable_url(url).is_some()
     }
 }
