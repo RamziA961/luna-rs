@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{Mutex, RwLock};
 use tracing::{error, instrument, trace};
 
-use crate::{embeds, models::GuildState};
+use crate::{embeds, models::GuildState, stream};
 
 #[derive(Debug, Clone)]
 pub struct QueueHandler {
@@ -14,7 +14,6 @@ pub struct QueueHandler {
     guild_channel: GuildChannel,
     guild_map: Arc<RwLock<HashMap<String, GuildState>>>,
     handler: Arc<Mutex<songbird::Call>>,
-    request_client: reqwest::Client,
 }
 
 impl QueueHandler {
@@ -24,7 +23,6 @@ impl QueueHandler {
         guild_channel: GuildChannel,
         guild_map: Arc<RwLock<HashMap<String, GuildState>>>,
         handler: Arc<Mutex<songbird::Call>>,
-        request_client: reqwest::Client,
     ) -> Self {
         Self {
             serenity_ctx,
@@ -32,7 +30,6 @@ impl QueueHandler {
             guild_channel,
             guild_map,
             handler,
-            request_client,
         }
     }
 }
@@ -62,17 +59,22 @@ impl EventHandler for QueueHandler {
                 )
             );
 
-            let t_handle = guard.play(
-                songbird::input::YoutubeDl::new(self.request_client.clone(), t.url.clone()).into(),
-            );
+            match stream::create_audio_stream(&t.url) {
+                Ok(track_input) => {
+                    let t_handle = guard.play(track_input.into());
 
-            _ = t_handle
-                .add_event(Event::Track(songbird::TrackEvent::End), self.clone())
-                .map_err(|e| {
-                    error!(err=%e, "Failed to add event handler.");
-                });
+                    _ = t_handle
+                        .add_event(Event::Track(songbird::TrackEvent::End), self.clone())
+                        .map_err(|e| {
+                            error!(err=%e, "Failed to add event handler.");
+                        });
 
-            guild_state.playback_state.set_track_handle(Some(t_handle));
+                    guild_state.playback_state.set_track_handle(Some(t_handle));
+                }
+                Err(err_msg) => {
+                    error!(err = %err_msg, "Failed to transition to the next track stream.");
+                }
+            }
         } else {
             trace!("No track queued to play.");
         };

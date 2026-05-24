@@ -69,7 +69,7 @@ pub async fn join_channel(ctx: Context<'_>) -> Result<(), ServerError> {
         Err(e) => {
             error!(e=%e, "Could not join voice channel {channel_id} in guild {guild_id}");
             Err(ServerError::Permissions(format!(
-                "Sorry {}. I couldn't join your voice channel.\
+                "Sorry {}. I couldn't join your voice channel. \
                     Please ensure that I have the permissions needed to join.",
                 ctx.author().name
             )))

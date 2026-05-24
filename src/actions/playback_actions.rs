@@ -20,7 +20,6 @@ pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), ServerError> 
         .ok_or_else(|| ServerError::Internal("Could not obtain guild channel.".to_string()))?;
 
     let mut guard = ctx.data().guild_map.write().await;
-    let req_client = &ctx.data().request_client;
     trace!("Write lock to guild map obtained.");
 
     let guild_state = guard.get_mut(&guild_id.to_string()).ok_or_else(|| {
@@ -47,15 +46,15 @@ pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), ServerError> 
 
     let manager_lock = manager.get_or_insert(guild_id);
     trace!("Commencing download and audio conversion of video.");
-    let t = songbird::input::YoutubeDl::new(
-        //"yt-dlp --cookies-from-browser"
-        req_client.clone(),
-        url,
-    );
+
+    let track_input = crate::stream::create_audio_stream(&url).map_err(|e| {
+        error!(err = %e, "Failed to instantiate custom audio stream pipeline.");
+        ServerError::Internal("Failed to process audio stream pipeline.".to_string())
+    })?;
 
     let mut guard = manager_lock.lock().await;
     trace!("Attempting to play converted track.");
-    let t_handle = guard.play(t.into());
+    let t_handle = guard.play(track_input.into());
 
     _ = t_handle
         .add_event(
@@ -66,7 +65,6 @@ pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), ServerError> 
                 channel,
                 ctx.data().guild_map.clone(),
                 manager_lock.clone(),
-                req_client.clone(),
             ),
         )
         .map_err(|e| {

@@ -10,6 +10,7 @@ pub mod embeds;
 pub mod event_handlers;
 pub mod models;
 mod server;
+pub mod stream;
 
 #[tokio::main]
 async fn main() -> Result<(), ServerError> {
