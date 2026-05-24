@@ -1,7 +1,10 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
 use crate::{commands, configuration::ConfigurationVariables, models};
-use poise::{FrameworkError, serenity_prelude};
+use poise::{
+    FrameworkError,
+    serenity_prelude::{self, prelude::TypeMapKey},
+};
 use tokio::sync::RwLock;
 use tracing::{error, info};
 
@@ -37,6 +40,11 @@ impl From<poise::serenity_prelude::Error> for ServerError {
     }
 }
 
+struct GuildMapKey;
+impl TypeMapKey for GuildMapKey {
+    type Value = Arc<RwLock<HashMap<String, models::GuildState>>>;
+}
+
 pub struct Server {
     serenity_client: poise::serenity_prelude::Client,
 }
@@ -67,6 +75,33 @@ impl Server {
             error!(err=%e, "Failed to start server.");
             ServerError::Internal(e.to_string())
         })
+    }
+
+    // Graceful shutdown. Leave all channels and close gateway.
+    pub async fn stop(&mut self) {
+        let (sb_manager, guild_map) = {
+            let data = self.serenity_client.data.read().await;
+            let sb_manager = data.get::<songbird::SongbirdKey>().cloned();
+            let guild_map = data.get::<GuildMapKey>().cloned();
+            (sb_manager, guild_map)
+        };
+
+        if let (Some(sb), Some(gm)) = (sb_manager, guild_map) {
+            let map = gm.read().await;
+
+            for guild_id_str in map.keys() {
+                if let Ok(guild_id) = serenity_prelude::GuildId::from_str(guild_id_str)
+                    && let Err(e) = sb.remove(guild_id).await
+                {
+                    error!(guild_id = %guild_id, err = %e, "Failed to leave channel during shutdown");
+                }
+            }
+
+            info!("Disconnected from all voice channels.");
+        }
+
+        self.serenity_client.shard_manager.shutdown_all().await;
+        info!("Gateway connection closed.");
     }
 
     /// Configures the Poise framework, mapping commands and error handlers.
@@ -102,12 +137,18 @@ impl Server {
 
         // Initialize State
         let youtube_client = models::YoutubeClient::new(vars.youtube_api_key()).await;
+        let guild_map = Arc::new(RwLock::new(HashMap::new()));
+
+        {
+            let mut data = ctx.data.write().await;
+            data.insert::<GuildMapKey>(guild_map.clone());
+        }
 
         Ok(ServerState {
             youtube_client,
             request_client: reqwest::Client::new(),
             configuration_variables: vars,
-            guild_map: Arc::new(RwLock::new(HashMap::new())),
+            guild_map,
         })
     }
 
