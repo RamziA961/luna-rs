@@ -1,58 +1,56 @@
-use tracing::{error, trace};
+use tracing::trace;
 
 use crate::server::{Context, ServerError};
-
 pub async fn author_in_voice_channel(ctx: Context<'_>) -> Result<bool, ServerError> {
-    let author = ctx.author();
-    let is_in_vc = ctx
-        .guild()
-        .map(|guild| guild.voice_states.contains_key(&author.id));
+    let author_id = ctx.author().id;
 
-    match is_in_vc {
-        None => {
-            error!("Could not validate if author in voice channel.");
-            Err(ServerError::Internal(
-                "Could not validate if author in voice channel.".to_string(),
-            ))
-        }
-        Some(false) => {
-            trace!("Command requirements not met. Command dispatched by author that is not in a voice channel.");
-            ctx.reply("Please join a voice channel to initiate this command.")
-                .await?;
-            Ok(false)
-        }
-        Some(true) => Ok(true),
+    // Scope block to extract data and drop the non-Send guild object
+    let is_in_vc = {
+        let guild = ctx
+            .guild()
+            .ok_or_else(|| ServerError::Internal("Could not find guild information".to_string()))?;
+        guild.voice_states.contains_key(&author_id)
+    };
+
+    if !is_in_vc {
+        trace!("Command dispatched by author not in a voice channel.");
+        ctx.reply("Please join a voice channel to initiate this command.")
+            .await?;
+        return Ok(false);
     }
+
+    Ok(true)
 }
 
 pub async fn author_in_shared_voice_channel(ctx: Context<'_>) -> Result<bool, ServerError> {
-    let author = ctx.author();
+    let author_id = ctx.author().id;
+    let bot_id = ctx.framework().bot_id;
 
-    let author_vc = ctx
-        .guild()
-        .as_ref()
-        .and_then(|guild| guild.voice_states.get(&author.id))
-        .and_then(|voice_state| voice_state.channel_id);
+    let (author_vc, bot_vc) = {
+        let guild = ctx
+            .guild()
+            .ok_or_else(|| ServerError::Internal("Could not find guild information".to_string()))?;
 
-    let bot_vc = ctx
-        .guild()
-        .as_ref()
-        .and_then(|guild| guild.voice_states.get(&ctx.framework().bot_id))
-        .and_then(|voice_state| voice_state.channel_id);
+        (
+            guild
+                .voice_states
+                .get(&author_id)
+                .and_then(|vs| vs.channel_id),
+            guild.voice_states.get(&bot_id).and_then(|vs| vs.channel_id),
+        )
+    };
 
     match (author_vc, bot_vc) {
-        (Some(author_vc), Some(bot_vc)) if author_vc == bot_vc => Ok(true),
+        (Some(a), Some(b)) if a == b => Ok(true),
         (Some(_), None) => Ok(true),
         (Some(_), Some(_)) | (None, Some(_)) => {
-            _ = ctx
-                .reply("Please join a shared voice channel to issue this command.")
-                .await;
+            ctx.reply("Please join a shared voice channel to issue this command.")
+                .await?;
             Ok(false)
         }
         (None, None) => {
-            _ = ctx
-                .reply("Please join a voice channel to initiate this command.")
-                .await;
+            ctx.reply("Please join a voice channel to initiate this command.")
+                .await?;
             Ok(false)
         }
     }
