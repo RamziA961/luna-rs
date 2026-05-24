@@ -33,9 +33,8 @@ pub fn create_audio_stream(url: &str) -> Result<Input, StreamError> {
     let mut ffmpeg = Command::new("ffmpeg")
         .args([
             "-i", "pipe:0", // Read from yt-dlp's stdout
-            "-f", "mp3", // Probe proof format
-            "-ac", "2", // Stereo
-            "-ar", "48000",  // Discord audio standard frequency
+            "-c:a", "copy", // Copy the Opus stream directly without transcoding
+            "-f", "ogg",    // Opus data is encapsulated in Ogg for streaming
             "-vn",    // Explicitly skip video decoding
             "pipe:1", // Write to stdout
         ])
