@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use poise::serenity_prelude::GuildId;
 use songbird::{Event, EventContext, EventHandler};
 use std::sync::Arc;
-use tracing::{error, trace};
+use tracing::{error, instrument, trace};
 
 #[derive(Debug)]
 pub struct InactivityHandler {
@@ -27,39 +27,36 @@ impl InactivityHandler {
 
 #[async_trait]
 impl EventHandler for InactivityHandler {
+    #[instrument(skip_all, fields(guild_id = %self.guild_id))]
     async fn act(&self, _e: &EventContext<'_>) -> Option<Event> {
-        let channel_id = self
-            .cache
-            .guild(self.guild_id)
-            .as_ref()
-            .and_then(|guild| guild.voice_states.get(&self.cache.current_user().id))
-            .and_then(|voice_state| voice_state.channel_id);
+        // Evaluate everything cleanly inside a dedicated synchronous scope block.
+        // This ensures the non-Send cache types drop *before* any .await boundary.
+        let should_leave = {
+            let guild = self.cache.guild(self.guild_id)?;
 
-        let member_count = self
-            .cache
-            .guild(self.guild_id)
-            .as_ref()
-            .map(|guild| {
-                guild
-                    .voice_states
-                    .values()
-                    .filter(|voice_state| {
-                        voice_state.channel_id == channel_id
-                            && voice_state.member.as_ref().is_some_and(|m| !m.user.bot)
-                    })
-                    .count()
-            })
-            .unwrap_or(0);
+            let bot_id = self.cache.current_user().id;
+            let target_channel = guild.voice_states.get(&bot_id)?.channel_id?;
 
-        if member_count == 0 {
-            trace!("Leaving empty channel an empty voice channel. Leaving channel.");
-            // We only need to leave and let the disconnect handler deal with
-            // cleaning up the resources.
-            _ = self
-                .handler
-                .leave(self.guild_id)
-                .await
-                .map_err(|e| error!(err=%e, "Could not leave voice channel"));
+            // Filter and count active human members inside our current channel
+            let human_count = guild
+                .voice_states
+                .values()
+                .filter(|vs| {
+                    vs.channel_id == Some(target_channel)
+                        && vs.member.as_ref().is_some_and(|m| !m.user.bot)
+                })
+                .count();
+
+            Some(human_count == 0)
+        }
+        .unwrap_or(false);
+
+        if should_leave {
+            trace!("Voice channel is empty of humans. Leaving channel.");
+
+            if let Err(e) = self.handler.leave(self.guild_id).await {
+                error!(err = %e, "Could not leave voice channel");
+            }
         }
 
         None

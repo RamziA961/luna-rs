@@ -31,23 +31,24 @@ impl DisconnectHandler {
 
 #[async_trait]
 impl EventHandler for DisconnectHandler {
-    #[instrument(skip_all, fields(guild_id=self.guild_id.to_string()))]
+    #[instrument(skip_all, fields(guild_id = %self.guild_id))]
     async fn act(&self, _e: &EventContext<'_>) -> Option<Event> {
         trace!("Disconnected from a voice channel. Cleaning up guild state.");
 
-        let mut guard = self.guild_map.write().await;
+        let guild_key = self.guild_id.to_string();
 
-        // If guild state not present, terminate early.
-        // This will likely mean, the inactivity handler,
-        // was fired.
-        guard.remove(&self.guild_id.to_string())?;
-        drop(guard);
+        // Scope the write lock block tightly to free it before the async .await call below
+        {
+            let mut guard = self.guild_map.write().await;
+            if guard.remove(&guild_key).is_none() {
+                trace!("Guild state was already cleared (likely by inactivity handler).");
+            }
+        } // `guard` is explicitly dropped here automatically
 
-        _ = self
-            .handler
-            .remove(self.guild_id)
-            .await
-            .map_err(|e| error!(err=%e, "Failed to remove guild songbird state from manager."));
+        // Ensure songbird removes its internal voice call handle regardless of map state
+        if let Err(e) = self.handler.remove(self.guild_id).await {
+            error!(err = %e, "Failed to remove guild songbird state from manager.");
+        }
 
         None
     }

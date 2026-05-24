@@ -36,48 +36,62 @@ impl QueueHandler {
 
 #[async_trait]
 impl EventHandler for QueueHandler {
-    #[instrument(skip_all, fields(guild_id = self.guild_id.to_string()))]
+    #[instrument(skip_all, fields(guild_id = %self.guild_id))]
     async fn act(&self, _e: &EventContext<'_>) -> Option<Event> {
         trace!("Track has ended. Handler called to action.");
 
-        let mut guard = self.guild_map.write().await;
-        let guild_state = guard.get_mut(&self.guild_id.to_string())?;
-        guild_state.playback_state.play_next();
+        let guild_key = self.guild_id.to_string();
 
-        trace!(guild_state=%guild_state, "Modified guild state to play next track.");
-        let current_track = guild_state.playback_state.get_current_track().clone();
+        let current_track = {
+            let mut map_guard = self.guild_map.write().await;
+            let guild_state = map_guard.get_mut(&guild_key)?;
+            guild_state.playback_state.play_next();
 
-        if let Some(t) = current_track {
-            trace!(track=?t, "Next track found.");
+            trace!(%guild_state, "Modified guild state to play next track.");
+            guild_state.playback_state.get_current_track().clone()
+        };
 
-            let (mut guard, _) = tokio::join!(
-                self.handler.lock(),
-                self.guild_channel.send_message(
-                    self.serenity_ctx.http(),
-                    poise::serenity_prelude::CreateMessage::default()
-                        .embed(embeds::create_playing_track_embed(&t))
-                )
-            );
+        let Some(track) = current_track else {
+            trace!("No track queued to play.");
+            return None;
+        };
+        trace!(?track, "Next track found.");
 
-            match stream::create_audio_stream(&t.url) {
-                Ok(track_input) => {
-                    let t_handle = guard.play(track_input.into());
+        let (mut call_guard, message_res) = tokio::join!(
+            self.handler.lock(),
+            self.guild_channel.send_message(
+                self.serenity_ctx.http(),
+                poise::serenity_prelude::CreateMessage::default()
+                    .embed(embeds::create_playing_track_embed(&track))
+            )
+        );
 
-                    _ = t_handle
-                        .add_event(Event::Track(songbird::TrackEvent::End), self.clone())
-                        .map_err(|e| {
-                            error!(err=%e, "Failed to add event handler.");
-                        });
+        if let Err(e) = message_res {
+            error!(err = %e, "Failed to send next track playback embed notification.");
+        }
 
-                    guild_state.playback_state.set_track_handle(Some(t_handle));
+        match stream::create_audio_stream(&track.url) {
+            Ok(track_input) => {
+                let track_handle = call_guard.play(track_input.into());
+
+                if let Err(e) =
+                    track_handle.add_event(Event::Track(songbird::TrackEvent::End), self.clone())
+                {
+                    error!(err = %e, "Failed to cascade next track event handler.");
                 }
-                Err(err_msg) => {
-                    error!(err = %err_msg, "Failed to transition to the next track stream.");
+
+                let mut map_guard = self.guild_map.write().await;
+
+                if let Some(guild_state) = map_guard.get_mut(&guild_key) {
+                    guild_state
+                        .playback_state
+                        .set_track_handle(Some(track_handle));
                 }
             }
-        } else {
-            trace!("No track queued to play.");
-        };
+            Err(err_msg) => {
+                error!(err = %err_msg, "Failed to transition to the next track stream.");
+            }
+        }
 
         None
     }
