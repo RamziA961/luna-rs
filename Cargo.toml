@@ -1,12 +1,11 @@
 [package]
 name = "luna-rs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
 async-trait = "0.1.83"
 config = "0.14.0"
-google-generative-ai-rs = { version = "0.3.2", features = ["beta"] }
 google-youtube3 = "7.0.0"
 html-escape = "0.2.13"
 hyper = { version = "1.0.0", features = ["client", "http1"] }

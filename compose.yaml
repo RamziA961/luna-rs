@@ -1,0 +1,19 @@
+services:
+  luna-rs:
+    container_name: luna-bot-dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - BUILD_PROFILE=debug
+    environment:
+      - RUST_LOG=info
+    restart: unless-stopped
+    develop:
+      watch:
+        - action: rebuild
+          path: ./src
+        - action: rebuild
+          path: ./Cargo.toml
+        - action: rebuild
+          path: ./Secrets.dev.toml
