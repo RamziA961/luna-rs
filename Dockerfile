@@ -41,7 +41,6 @@ RUN apk add --no-cache \
   openssl \
   ffmpeg \
   python3 \
-  yt-dlp \
   curl \
   unzip \
   bash
