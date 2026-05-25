@@ -1,12 +1,13 @@
 use crate::{
     checks::{author_in_shared_voice_channel, author_in_voice_channel},
-    server::{Context, ServerError},
+    models::{DiscordError, InternalError, RuntimeError},
+    server::Context,
 };
 use tracing::instrument;
 
 /// Seek a position in the track.
 #[poise::command(slash_command, subcommands("absolute"))]
-pub async fn seek(_: Context<'_>) -> Result<(), ServerError> {
+pub async fn seek(_: Context<'_>) -> Result<(), RuntimeError> {
     Ok(())
 }
 
@@ -20,21 +21,19 @@ pub async fn seek(_: Context<'_>) -> Result<(), ServerError> {
 pub async fn absolute(
     ctx: Context<'_>,
     #[description = "The desired timestamp (HH:MM:SS) to seek to."] position: String,
-) -> Result<(), ServerError> {
+) -> Result<(), RuntimeError> {
+    ctx.defer().await.map_err(DiscordError::Gateway)?;
+
     let guild_id = ctx
         .guild_id()
-        .ok_or_else(|| ServerError::Internal("Could not find guild information".to_string()))?;
-
-    ctx.defer().await?;
+        .ok_or(InternalError::GuildInformationMissing)?;
 
     let sliced = position.split(":").collect::<Vec<&str>>();
 
     if sliced.len() != 3 {
-        ctx.reply(format!(
+        return Err(RuntimeError::User(format!(
             "{position} is not a valid timestamp. Please use the HH:MM:SS format"
-        ))
-        .await?;
-        return Ok(());
+        )));
     }
 
     let parsed = sliced
@@ -52,22 +51,20 @@ pub async fn absolute(
         .ok()
         .map(|args| std::time::Duration::from_secs(args[0] * 3600 + args[1] * 60 + args[2]));
 
-    if let Some(timestamp) = timestamp {
+    return if let Some(timestamp) = timestamp {
         let mut guard = ctx.data().guild_map.write().await;
         let state = guard.get_mut(&guild_id.to_string()).unwrap();
         let track_handle = state.playback_state.get_track_handle_mut();
 
-        if let Some(handle) = track_handle {
+        return if let Some(handle) = track_handle {
             _ = handle.seek(timestamp);
+            Ok(())
         } else {
-            ctx.reply("Nothing currently playing").await?;
-        }
+            Err(RuntimeError::User("Nothing currently playing".to_string()))
+        };
     } else {
-        ctx.reply(format!(
+        Err(RuntimeError::User(format!(
             "{position} is not a valid timestamp. Please use the HH:MM:SS format"
-        ))
-        .await?;
-    }
-
-    Ok(())
+        )))
+    };
 }

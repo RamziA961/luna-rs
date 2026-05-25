@@ -1,6 +1,10 @@
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 
-use crate::{commands, configuration::ConfigurationVariables, models};
+use crate::{
+    commands,
+    configuration::ConfigurationVariables,
+    models::{self, DiscordError, RuntimeError},
+};
 use poise::{
     FrameworkError,
     serenity_prelude::{self, prelude::TypeMapKey},
@@ -8,7 +12,7 @@ use poise::{
 use tokio::sync::RwLock;
 use tracing::{error, info};
 
-pub type Context<'a> = poise::Context<'a, ServerState, ServerError>;
+pub type Context<'a> = poise::Context<'a, ServerState, RuntimeError>;
 
 #[derive(Debug, Clone)]
 pub struct ServerState {
@@ -16,28 +20,6 @@ pub struct ServerState {
     pub request_client: reqwest::Client,
     pub youtube_client: models::YoutubeClient,
     pub guild_map: Arc<RwLock<HashMap<String, models::GuildState>>>,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ServerError {
-    #[error("Whoops, an internal error occurred: {0}")]
-    Internal(String),
-
-    #[error("Permissions Error: {0}")]
-    Permissions(String),
-
-    #[error("Unimplemented Error: Sorry this feature is planned but not implemented yet.")]
-    Unimplemented,
-}
-
-impl From<poise::serenity_prelude::Error> for ServerError {
-    fn from(value: poise::serenity_prelude::Error) -> Self {
-        if cfg!(debug_assertions) {
-            ServerError::Internal(value.to_string())
-        } else {
-            ServerError::Internal("Fatal error".to_string())
-        }
-    }
 }
 
 struct GuildMapKey;
@@ -70,10 +52,10 @@ impl Server {
         Self { serenity_client }
     }
 
-    pub async fn start(&mut self) -> Result<(), ServerError> {
+    pub async fn start(&mut self) -> Result<(), RuntimeError> {
         self.serenity_client.start().await.map_err(|e| {
-            error!(err=%e, "Failed to start server.");
-            ServerError::Internal(e.to_string())
+            error!(err=%e, "Fatal error");
+            DiscordError::Gateway(e).into()
         })
     }
 
@@ -105,9 +87,8 @@ impl Server {
     }
 
     /// Configures the Poise framework, mapping commands and error handlers.
-    fn framework_options() -> poise::FrameworkOptions<ServerState, ServerError> {
+    fn framework_options() -> poise::FrameworkOptions<ServerState, RuntimeError> {
         poise::FrameworkOptions {
-            on_error: |err| Box::pin(Self::error_handler(err)),
             commands: vec![
                 commands::pause::pause(),
                 commands::play::play(),
@@ -116,6 +97,30 @@ impl Server {
                 commands::skip::skip(),
                 commands::stop::stop(),
             ],
+            pre_command: |ctx| {
+                Box::pin(async move {
+                    let command_name = ctx.command().name.clone();
+                    let author_id = ctx.author().id.get();
+                    let guild_id = ctx.guild_id().map(|id| id.get()).unwrap_or(0);
+
+                    tracing::info!(
+                        command = %command_name,
+                        user = %author_id,
+                        guild = %guild_id,
+                        "Command invoked"
+                    );
+                })
+            },
+            post_command: |ctx| {
+                Box::pin(async move {
+                    tracing::info!(
+                        command = %ctx.command().name,
+                        user_id = %ctx.author().id.get(),
+                        "Command completed successfully"
+                    );
+                })
+            },
+            on_error: |err| Box::pin(Self::error_handler(err)),
             require_cache_for_guild_check: true,
             ..Default::default()
         }
@@ -124,9 +129,9 @@ impl Server {
     /// Handles initialization logic executed once Discord is connected.
     async fn setup_framework(
         ctx: &serenity_prelude::Context,
-        fw: &poise::Framework<ServerState, ServerError>,
+        fw: &poise::Framework<ServerState, RuntimeError>,
         vars: ConfigurationVariables,
-    ) -> Result<ServerState, ServerError> {
+    ) -> Result<ServerState, RuntimeError> {
         // Initialize crypto provider
         rustls::crypto::ring::default_provider()
             .install_default()
@@ -164,42 +169,93 @@ impl Server {
     /// Handles registering commands globally or to a specific dev guild based on build profile.
     async fn register_commands(
         ctx: &serenity_prelude::Context,
-        commands: &[poise::Command<ServerState, ServerError>],
+        commands: &[poise::Command<ServerState, RuntimeError>],
         vars: &ConfigurationVariables,
-    ) -> Result<(), ServerError> {
-        let registration_res = if cfg!(debug_assertions) {
+    ) -> Result<(), RuntimeError> {
+        if cfg!(debug_assertions) {
             info!("Registering commands to Dev Guild...");
             let guild_id = serenity_prelude::GuildId::new(vars.dev_guild_id() as u64);
             poise::builtins::register_in_guild(&ctx.http, commands, guild_id).await
         } else {
             info!("Registering commands Globally...");
             poise::builtins::register_globally(ctx, commands).await
-        };
-
-        registration_res.map_err(|e| {
-            error!(e=%e, "Command registration failed.");
-            ServerError::Internal(e.to_string())
-        })?;
-
+        }
+        .map_err(DiscordError::Gateway)?;
         Ok(())
     }
 
     /// Global framework error handler.
-    async fn error_handler(err: FrameworkError<'_, ServerState, ServerError>) {
-        error!(err=%err, "An error occurred in the framework.");
+    async fn error_handler(err: FrameworkError<'_, ServerState, RuntimeError>) {
+        // TODO: Explore simplifying with spans?
         match err {
             FrameworkError::Command { error, ctx, .. } => {
-                _ = ctx.reply(error.to_string()).await;
+                let command_name = ctx.command().name.clone();
+                let user_id = ctx.author().id.get();
+                let guild_id = ctx.guild_id().map(|id| id.get()).unwrap_or(0);
+
+                let user_response = match error {
+                    RuntimeError::User(msg) => {
+                        info!(command=%command_name, user=%user_id, guild=%guild_id, "User error: {msg}");
+                        msg
+                    }
+                    RuntimeError::Unimplemented => {
+                        "Sorry, this feature is planned but not implemented yet.".to_string()
+                    }
+                    // Hide internals
+                    internal_fault => {
+                        error!(
+                            command=%command_name,
+                            user=%user_id,
+                            guild=%guild_id,
+                            err=%internal_fault,
+                            "System error during command execution."
+                        );
+                        "An unexpected internal error occurred while processing your request."
+                            .to_string()
+                    }
+                };
+
+                if let Err(e) = ctx.reply(user_response).await {
+                    error!(err=%e, user=%user_id, guild=%guild_id, "Failed to send error reply to user.");
+                }
             }
+
+            FrameworkError::CommandCheckFailed { error, ctx, .. } => {
+                let command_name = ctx.command().name.clone();
+                let user_id = ctx.author().id.get();
+                let guild_id = ctx.guild_id().map(|id| id.get()).unwrap_or(0);
+
+                if let Some(err) = error {
+                    match err {
+                        RuntimeError::User(msg) => {
+                            info!(command=%command_name, user=%user_id, guild=%guild_id, "Check failed (User): {msg}");
+                            _ = ctx.reply(msg).await;
+                        }
+                        internal_fault => {
+                            error!(command=%command_name, user=%user_id, guild=%guild_id, err=%internal_fault, "Check failed (Internal).");
+                            _ = ctx
+                                .reply("An unexpected error occurred during command validation.")
+                                .await;
+                        }
+                    }
+                } else {
+                    info!(command=%command_name, user=%user_id, guild=%guild_id, "Check failed silently.");
+                    _ = ctx
+                        .reply("You do not meet the requirements to run this command.")
+                        .await;
+                }
+            }
+
             FrameworkError::EventHandler { error, event, .. } => {
-                error!(event=?event.snake_case_name(), "Event handler failed: {}", error);
+                error!(event=?event.snake_case_name(), err=%error, "Background event handler failed.");
             }
-            FrameworkError::CommandCheckFailed { ref error, ctx, .. }
-                if let Some(error) = error =>
-            {
-                _ = ctx.reply(error.to_string()).await;
+
+            FrameworkError::Setup { error, .. } => {
+                error!(err=%error, "Fatal error during bot setup.");
             }
-            _ => {}
+            other => {
+                error!(err=%other, "Unhandled framework error.");
+            }
         }
     }
 }

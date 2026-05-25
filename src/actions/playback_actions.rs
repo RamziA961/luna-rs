@@ -1,31 +1,31 @@
 use crate::{
     embeds,
     event_handlers::queue_handler::QueueHandler,
-    models::QueueElement,
-    server::{Context, ServerError},
+    models::{DiscordError, InternalError, QueueElement, RuntimeError},
+    server::Context,
 };
 use songbird::{Event, TrackEvent};
 use tracing::{error, instrument, trace};
 
 #[instrument(skip_all, fields(guild_id = %ctx.guild_id().unwrap_or_default()))]
-pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), ServerError> {
+pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), RuntimeError> {
     trace!("Attempting to start queue playback");
     let guild_id = ctx
         .guild_id()
-        .ok_or_else(|| ServerError::Internal("Could not find guild information.".to_string()))?;
+        .ok_or(InternalError::GuildInformationMissing)?;
 
     let guild_key = guild_id.to_string();
     let channel = ctx
         .guild_channel()
         .await
-        .ok_or_else(|| ServerError::Internal("Could not obtain guild channel.".to_string()))?;
+        .ok_or(InternalError::GuildInformationMissing)?;
 
     // Extract track info and modify queue state
     let url = {
         let mut map_guard = ctx.data().guild_map.write().await;
-        let guild_state = map_guard.get_mut(&guild_key).ok_or_else(|| {
-            ServerError::Internal("Could not find guild playback information.".to_string())
-        })?;
+        let guild_state = map_guard
+            .get_mut(&guild_key)
+            .ok_or(InternalError::BadGuildState)?;
 
         if guild_state.playback_state.is_playing() {
             trace!("Playback already in progress.");
@@ -39,13 +39,14 @@ pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), ServerError> 
             .as_ref()
             .map(|track| track.url.clone())
             .ok_or_else(|| {
-                ServerError::Internal("Queue state updated but track is missing.".to_string())
+                error!("Queue state updated but track is missing.");
+                InternalError::BadGuildState
             })?
     };
 
     let manager = songbird::get(ctx.serenity_context()).await.ok_or_else(|| {
         error!("Failed to get songbird manager from context.");
-        ServerError::Internal("Unable to begin playback.".to_string())
+        InternalError::DependencyMissing("Songibrd".to_string())
     })?;
 
     let manager_lock = manager.get_or_insert(guild_id);
@@ -53,7 +54,7 @@ pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), ServerError> 
 
     let track_input = crate::stream::create_audio_stream(&url).map_err(|e| {
         error!(err = %e, "Failed to instantiate custom audio stream pipeline.");
-        ServerError::Internal("Failed to process audio stream pipeline.".to_string())
+        InternalError::Stream(e)
     })?;
 
     let mut call_guard = manager_lock.lock().await;
@@ -82,14 +83,14 @@ pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), ServerError> 
     Ok(())
 }
 
-#[instrument(skip(ctx))]
+#[instrument(skip(ctx), fields(guild_id = %ctx.guild_id().unwrap_or_default()))]
 pub async fn add_element_to_queue(
     ctx: &Context<'_>,
     queue_element: QueueElement,
-) -> Result<(), ServerError> {
+) -> Result<(), RuntimeError> {
     let guild_id = ctx
         .guild_id()
-        .ok_or_else(|| ServerError::Internal("Could not find guild information".to_string()))?;
+        .ok_or(InternalError::GuildInformationMissing)?;
 
     let mut map_guard = ctx.data().guild_map.write().await;
     let guild_state = map_guard.entry(guild_id.to_string()).or_default();
@@ -106,14 +107,17 @@ pub async fn add_element_to_queue(
         QueueElement::Playlist(p) => embeds::create_playling_playlist_embed(&p),
     };
 
-    ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    ctx.send(poise::CreateReply::default().embed(embed))
+        .await
+        .map_err(DiscordError::Gateway)?;
     Ok(())
 }
 
-pub async fn stop(ctx: &Context<'_>) -> Result<(), ServerError> {
+#[instrument(skip_all, fields(guild_id = %ctx.guild_id().unwrap_or_default()))]
+pub async fn stop(ctx: &Context<'_>) -> Result<(), RuntimeError> {
     let guild_id = ctx
         .guild_id()
-        .ok_or_else(|| ServerError::Internal("Could not find guild information".to_string()))?;
+        .ok_or(InternalError::GuildInformationMissing)?;
 
     {
         let mut map_guard = ctx.data().guild_map.write().await;
@@ -130,20 +134,25 @@ pub async fn stop(ctx: &Context<'_>) -> Result<(), ServerError> {
 
     let Some(handle) = handler else {
         trace!("Nothing currently playing.");
-        ctx.reply("Nothing is currently playing.").await?;
-        return Ok(());
+        return Err(RuntimeError::User(
+            "Nothing is currently playing.".to_string(),
+        ));
     };
 
     handle.lock().await.stop();
+
     ctx.reply("Halted playback and reset the track queue.")
-        .await?;
+        .await
+        .map_err(DiscordError::Gateway)?;
+
     Ok(())
 }
 
-pub async fn pause(ctx: &Context<'_>) -> Result<(), ServerError> {
+#[instrument(skip_all, fields(guild_id = %ctx.guild_id().unwrap_or_default()))]
+pub async fn pause(ctx: &Context<'_>) -> Result<(), RuntimeError> {
     let guild_id = ctx
         .guild_id()
-        .ok_or_else(|| ServerError::Internal("Could not find guild information".to_string()))?;
+        .ok_or(InternalError::GuildInformationMissing)?;
 
     let track_data = {
         let map_guard = ctx.data().guild_map.read().await;
@@ -156,20 +165,23 @@ pub async fn pause(ctx: &Context<'_>) -> Result<(), ServerError> {
     };
 
     let Some((Some(current_track), Some(track_handle))) = track_data else {
-        ctx.reply("Nothing is currently playing.").await?;
-        return Ok(());
+        return Err(RuntimeError::User(
+            "Nothing is currently playing.".to_string(),
+        ));
     };
 
     let _ = track_handle.pause();
     ctx.send(poise::CreateReply::default().embed(embeds::create_paused_embed(&current_track)))
-        .await?;
+        .await
+        .map_err(DiscordError::Gateway)?;
     Ok(())
 }
 
-pub async fn resume(ctx: &Context<'_>) -> Result<(), ServerError> {
+#[instrument(skip_all, fields(guild_id = %ctx.guild_id().unwrap_or_default()))]
+pub async fn resume(ctx: &Context<'_>) -> Result<(), RuntimeError> {
     let guild_id = ctx
         .guild_id()
-        .ok_or_else(|| ServerError::Internal("Could not find guild information".to_string()))?;
+        .ok_or(InternalError::GuildInformationMissing)?;
 
     let track_data = {
         let map_guard = ctx.data().guild_map.read().await;
@@ -182,31 +194,34 @@ pub async fn resume(ctx: &Context<'_>) -> Result<(), ServerError> {
     };
 
     let Some((Some(current_track), Some(track_handle))) = track_data else {
-        ctx.reply("Nothing is currently playing.").await?;
-        return Ok(());
+        return Err(RuntimeError::User(
+            "Nothing is currently playing.".to_string(),
+        ));
     };
 
     let _ = track_handle.play();
     ctx.send(
         poise::CreateReply::default().embed(embeds::create_resume_track_embed(&current_track)),
     )
-    .await?;
+    .await
+    .map_err(DiscordError::Gateway)?;
+
     Ok(())
 }
 
-pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), ServerError> {
+#[instrument(skip_all, fields(guild_id = %ctx.guild_id().unwrap_or_default()))]
+pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), RuntimeError> {
     let guild_id = ctx
         .guild_id()
-        .ok_or_else(|| ServerError::Internal("Could not find guild information".to_string()))?;
+        .ok_or(InternalError::GuildInformationMissing)?;
 
     let mut map_guard = ctx.data().guild_map.write().await;
-    let guild_state = map_guard.get_mut(&guild_id.to_string()).ok_or_else(|| {
-        ServerError::Internal("Could not find guild playback information".to_string())
-    })?;
+    let guild_state = map_guard
+        .get_mut(&guild_id.to_string())
+        .ok_or(InternalError::BadGuildState)?;
 
     let Some(track_handle) = guild_state.playback_state.get_track_handle().clone() else {
-        ctx.reply("The queue is empty.").await?;
-        return Ok(());
+        return Err(RuntimeError::User("The queue is empty.".to_string()));
     };
 
     let mut skipped = 1;
@@ -247,22 +262,24 @@ pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), ServerError> {
             ))
             .await
         }
-    }?;
+    }
+    .map_err(DiscordError::Gateway)?;
 
     let _ = track_handle.stop();
     Ok(())
 }
 
-pub async fn show_queue(ctx: &Context<'_>) -> Result<(), ServerError> {
+#[instrument(skip_all, fields(guild_id = %ctx.guild_id().unwrap_or_default()))]
+pub async fn show_queue(ctx: &Context<'_>) -> Result<(), RuntimeError> {
     let guild_id = ctx
         .guild_id()
-        .ok_or_else(|| ServerError::Internal("Could not find guild information".to_string()))?;
+        .ok_or(InternalError::GuildInformationMissing)?;
 
     let queue_info = {
         let map_guard = ctx.data().guild_map.read().await;
-        let guild_state = map_guard.get(&guild_id.to_string()).ok_or_else(|| {
-            ServerError::Internal("Could not find guild playback information".to_string())
-        })?;
+        let guild_state = map_guard
+            .get(&guild_id.to_string())
+            .ok_or(InternalError::BadGuildState)?;
 
         Some((
             guild_state.playback_state.next_items_queued(5),
@@ -272,12 +289,11 @@ pub async fn show_queue(ctx: &Context<'_>) -> Result<(), ServerError> {
     };
 
     let Some((next_tracks, n_tracks, n_items)) = queue_info else {
-        ctx.reply("The queue is empty.").await?;
-        return Ok(());
+        return Err(RuntimeError::User("The queue is empty.".to_string()));
     };
 
     if n_items == 0 {
-        ctx.reply("The queue is empty.").await?;
+        return Err(RuntimeError::User("The queue is empty.".to_string()));
     } else {
         ctx.send(
             poise::CreateReply::default().embed(embeds::create_queue_overview_embed(
@@ -286,7 +302,8 @@ pub async fn show_queue(ctx: &Context<'_>) -> Result<(), ServerError> {
                 n_items,
             )),
         )
-        .await?;
+        .await
+        .map_err(DiscordError::Gateway)?;
     }
 
     Ok(())

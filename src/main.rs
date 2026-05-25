@@ -1,4 +1,3 @@
-use server::ServerError;
 use tracing::{error, info, level_filters::LevelFilter};
 use tracing_subscriber::EnvFilter;
 
@@ -12,13 +11,7 @@ pub mod models;
 mod server;
 pub mod stream;
 
-#[derive(thiserror::Error, Debug)]
-enum LunaError {
-    #[error("Startup Failure. {0}")]
-    Initialization(#[from] std::io::Error),
-    #[error("Runtime Error. {0}")]
-    Runtime(#[from] ServerError),
-}
+use models::LunaError;
 
 #[tokio::main]
 async fn main() -> Result<(), LunaError> {
@@ -37,7 +30,7 @@ async fn main() -> Result<(), LunaError> {
         res = server.start() => {
             if let Err(e) = res {
                 error!(error = %e, "Fatal runtime error.");
-                return Err(LunaError::Runtime(e));
+                return Err(LunaError::Runtime(Box::new(e)));
             }
         }
         _ = sigint.recv() => info!("SIGINT received. Shutting down..."),

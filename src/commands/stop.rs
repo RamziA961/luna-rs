@@ -3,13 +3,14 @@ use tracing::instrument;
 use crate::{
     actions::playback_actions,
     checks::author_in_shared_voice_channel,
-    server::{Context, ServerError},
+    models::{DiscordError, RuntimeError},
+    server::Context,
 };
 
 /// Stop playback and clear the queue.
 #[instrument(skip(ctx))]
 #[poise::command(slash_command, check = "author_in_shared_voice_channel")]
-pub async fn stop(ctx: Context<'_>) -> Result<(), ServerError> {
-    ctx.defer().await?;
+pub async fn stop(ctx: Context<'_>) -> Result<(), RuntimeError> {
+    ctx.defer().await.map_err(DiscordError::Gateway)?;
     playback_actions::stop(&ctx).await
 }

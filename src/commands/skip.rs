@@ -1,7 +1,8 @@
 use crate::{
     actions::playback_actions,
     checks::{author_in_shared_voice_channel, author_in_voice_channel},
-    server::{Context, ServerError},
+    models::{DiscordError, RuntimeError},
+    server::Context,
 };
 
 /// Skip a number of tracks.
@@ -12,11 +13,10 @@ use crate::{
 )]
 pub async fn skip(
     ctx: Context<'_>,
-
     #[description = "Number of tracks to skip"]
     #[min = 1_usize]
     n: Option<usize>,
-) -> Result<(), ServerError> {
-    ctx.defer().await?;
+) -> Result<(), RuntimeError> {
+    ctx.defer().await.map_err(DiscordError::Gateway)?;
     playback_actions::skip(&ctx, n.unwrap_or(1)).await
 }

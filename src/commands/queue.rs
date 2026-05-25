@@ -1,7 +1,8 @@
 use crate::{
     actions::playback_actions,
     checks::{author_in_shared_voice_channel, author_in_voice_channel},
-    server::{Context, ServerError},
+    models::{DiscordError, RuntimeError},
+    server::Context,
 };
 
 /// Display the next items in the queue.
@@ -10,8 +11,8 @@ use crate::{
     check = "author_in_voice_channel",
     check = "author_in_shared_voice_channel"
 )]
-pub async fn queue(ctx: Context<'_>) -> Result<(), ServerError> {
-    ctx.defer().await?;
+pub async fn queue(ctx: Context<'_>) -> Result<(), RuntimeError> {
+    ctx.defer().await.map_err(DiscordError::Gateway)?;
     playback_actions::show_queue(&ctx).await?;
     Ok(())
 }
