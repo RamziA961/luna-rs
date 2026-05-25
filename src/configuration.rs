@@ -20,7 +20,6 @@ impl Default for ConfigurationVariables {
 }
 
 impl ConfigurationVariables {
-    #[cfg(debug_assertions)]
     pub fn new() -> Self {
         let vars = Config::builder()
             .add_source(File::with_name(CONFIG_SORUCE))

@@ -172,15 +172,21 @@ impl Server {
         commands: &[poise::Command<ServerState, RuntimeError>],
         vars: &ConfigurationVariables,
     ) -> Result<(), RuntimeError> {
-        if cfg!(debug_assertions) {
+        #[cfg(debug_assertions)]
+        {
             info!("Registering commands to Dev Guild...");
             let guild_id = serenity_prelude::GuildId::new(vars.dev_guild_id() as u64);
-            poise::builtins::register_in_guild(&ctx.http, commands, guild_id).await
-        } else {
-            info!("Registering commands Globally...");
-            poise::builtins::register_globally(ctx, commands).await
+            poise::builtins::register_in_guild(&ctx.http, commands, guild_id)
+                .await
+                .map_err(DiscordError::Gateway)?;
         }
-        .map_err(DiscordError::Gateway)?;
+        #[cfg(not(debug_assertions))]
+        {
+            info!("Registering commands Globally...");
+            poise::builtins::register_globally(ctx, commands)
+                .await
+                .map_err(DiscordError::Gateway)?;
+        }
         Ok(())
     }
 
