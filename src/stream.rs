@@ -1,4 +1,4 @@
-use songbird::input::{core::io::ReadOnlySource, AudioStream, Input, LiveInput};
+use songbird::input::{AudioStream, Input, LiveInput, core::io::ReadOnlySource};
 use std::process::{Command, Stdio};
 
 #[derive(thiserror::Error, Debug)]
@@ -9,7 +9,7 @@ pub enum StreamError {
     Capture(String),
 }
 
-/// Spawns yt-dlp and pipes it into ffmpeg to deliver a clean MP3 stream to Songbird.
+/// Spawns yt-dlp and pipes it into ffmpeg to deliver a stream to Songbird.
 pub fn create_audio_stream(url: &str) -> Result<Input, StreamError> {
     // Spawn yt-dlp to download the raw audio stream
     let mut ytdl = Command::new("yt-dlp")

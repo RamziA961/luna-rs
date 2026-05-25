@@ -57,6 +57,5 @@ RUN mkdir -p /etc/yt-dlp \
   && echo "--js-runtime bun" > /etc/yt-dlp/config
 
 COPY --from=builder /volume/target/output/${BUILD_PROFILE}/luna-rs .
-COPY Secrets*.toml ./
 
 CMD ["./luna-rs"]
