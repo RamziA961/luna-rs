@@ -69,6 +69,7 @@ pub async fn start_queue_playback(ctx: &Context<'_>) -> Result<(), RuntimeError>
             channel,
             ctx.data().guild_map.clone(),
             manager_lock.clone(),
+            ctx.data().youtube_client.clone(),
         ),
     ) {
         error!(err = %e, "Failed to add queue event handler.");
@@ -224,35 +225,38 @@ pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), RuntimeError> {
         return Err(RuntimeError::User("The queue is empty.".to_string()));
     };
 
-    let mut skipped = 1;
+    let mut skipped = 0;
     for _ in 0..(n.saturating_sub(1)) {
         guild_state.playback_state.dequeue();
         skipped += 1;
     }
+    // handles the current track + queue head
+    guild_state.playback_state.play_next();
+    skipped += 1;
 
-    let next = guild_state.playback_state.next().cloned();
+    let next = guild_state.playback_state.get_current_track().clone();
+    let is_radio = guild_state.playback_state.is_radio_mode_enabled();
     let remaining_queued = guild_state.playback_state.number_of_tracks_queued();
+
+    // Stop current audio to trigger the event handler
+    _ = track_handle.stop(); // TODO: Handle better
 
     drop(map_guard);
 
     match next {
-        Some(QueueElement::Playlist(p)) => {
-            ctx.send(
-                poise::CreateReply::default().embed(embeds::create_skip_playlist_embed(
-                    &p,
-                    skipped,
-                    remaining_queued,
-                )),
-            )
-            .await
-        }
-        Some(QueueElement::Track(t)) => {
+        Some(t) => {
             ctx.send(
                 poise::CreateReply::default().embed(embeds::create_skip_track_embed(
                     &t,
                     skipped,
                     remaining_queued,
                 )),
+            )
+            .await
+        }
+        None if is_radio => {
+            ctx.reply(
+                "Skipped! The queue is empty, but Radio Mode is active. Fetching next track...",
             )
             .await
         }
@@ -265,7 +269,6 @@ pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), RuntimeError> {
     }
     .map_err(DiscordError::Gateway)?;
 
-    let _ = track_handle.stop();
     Ok(())
 }
 
@@ -305,6 +308,38 @@ pub async fn show_queue(ctx: &Context<'_>) -> Result<(), RuntimeError> {
         .await
         .map_err(DiscordError::Gateway)?;
     }
+
+    Ok(())
+}
+
+#[instrument(skip_all, fields(guild_id = %ctx.guild_id().unwrap_or_default()))]
+pub async fn toggle_radio_mode(ctx: &Context<'_>) -> Result<(), RuntimeError> {
+    let guild_id = ctx
+        .guild_id()
+        .map(|gid| gid.to_string())
+        .ok_or(InternalError::GuildInformationMissing)?;
+
+    let (is_radio_on, seed_track) = {
+        let mut map_guard = ctx.data().guild_map.write().await;
+        let guild_state = map_guard
+            .get_mut(&guild_id)
+            .ok_or(InternalError::GuildInformationMissing)?;
+
+        guild_state.playback_state.toggle_radio_mode();
+        guild_state.playback_state.is_radio_mode_enabled();
+
+        (
+            guild_state.playback_state.is_radio_mode_enabled(),
+            guild_state.playback_state.get_current_track().clone(),
+        )
+    };
+
+    ctx.send(
+        poise::CreateReply::default()
+            .embed(embeds::create_radio_embed(is_radio_on, seed_track.as_ref())),
+    )
+    .await
+    .map_err(DiscordError::Gateway)?;
 
     Ok(())
 }

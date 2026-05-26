@@ -9,7 +9,7 @@ use google_youtube3::{
     },
 };
 use std::fmt::Debug;
-use tracing::{error, info, instrument, trace};
+use tracing::{error, info, instrument, trace, warn};
 
 mod metadata_utils;
 pub mod playlist_metadata;
@@ -27,7 +27,7 @@ pub enum YoutubeMetadata {
 const SINGLE_URI: &str = "https://youtube.com/watch?v=";
 const PLAYLIST_URI: &str = "https://youtube.com/playlist?list=";
 
-const PLAYLIST_CAP: usize = 50;
+const PLAYLIST_CAP: u32 = 50;
 
 #[derive(thiserror::Error, Debug)]
 pub enum YoutubeError {
@@ -140,7 +140,11 @@ impl YoutubeClient {
     }
 
     #[instrument(skip(self))]
-    pub async fn search_playlist(&self, query: &str) -> Result<PlaylistMetadata, YoutubeError> {
+    pub async fn search_playlist(
+        &self,
+        query: &str,
+        n_items: u32,
+    ) -> Result<PlaylistMetadata, YoutubeError> {
         trace!("Searching for playlist");
         let (_, list) = self
             .client
@@ -167,7 +171,7 @@ impl YoutubeClient {
             })?;
 
         let mut metadata = PlaylistMetadata::try_from(top_result)?;
-        let items = self.fetch_playlist_items(&metadata.id).await?;
+        let items = self.fetch_playlist_items(&metadata.id, n_items).await?;
         metadata.items.extend(items);
 
         Ok(metadata)
@@ -218,7 +222,7 @@ impl YoutubeClient {
         // Run concurrently
         let (playlist_res, items_res) = tokio::join!(
             metadata_request.doit(),
-            self.fetch_playlist_items(playlist_id)
+            self.fetch_playlist_items(playlist_id, PLAYLIST_CAP)
         );
 
         // Map and clean up
@@ -246,6 +250,7 @@ impl YoutubeClient {
     async fn fetch_playlist_items(
         &self,
         playlist_id: &str,
+        n_items: u32,
     ) -> Result<Vec<VideoMetadata>, YoutubeError> {
         let mut page_token: Option<String> = None;
         let mut playlist_items = Vec::new();
@@ -257,7 +262,7 @@ impl YoutubeClient {
                 .list(&vec!["snippet".to_string()])
                 .playlist_id(playlist_id)
                 .param("key", &self.api_key)
-                .max_results(50);
+                .max_results(n_items);
 
             if let Some(ref token) = page_token {
                 request = request.page_token(token);
@@ -278,7 +283,7 @@ impl YoutubeClient {
                 break;
             };
 
-            if playlist_items.len() >= PLAYLIST_CAP {
+            if playlist_items.len() >= PLAYLIST_CAP as usize {
                 break;
             }
 
@@ -286,6 +291,50 @@ impl YoutubeClient {
         }
 
         Ok(playlist_items)
+    }
+
+    /// Fetches a related video for radio mode.
+    /// Note: YouTube officially deprecated the `relatedToVideoId` search parameter, so we use a
+    /// workaround.
+    #[instrument(skip(self))]
+    pub async fn get_related_video(&self, url: &str) -> Result<VideoMetadata, YoutubeError> {
+        trace!("Requested related video for radio mode.");
+        let parsed_url = url::Url::parse(url).map_err(|e| {
+            trace!(err=%e, "Could not parse seed URL.");
+            YoutubeError::Url
+        })?;
+
+        let seed_id = Self::extract_video_id(&parsed_url).ok_or_else(|| {
+            trace!("Could not extract video ID from seed URL.");
+            YoutubeError::Url
+        })?;
+
+        let seed_metadata = self.get_video_metadata(&seed_id).await?;
+
+        let query = format!("{} playlist", seed_metadata.title);
+        let playlist_mix = self.search_playlist(&query, 10).await.map_err(|e| {
+            error!(err=%e, "Radio mode failed to find a valid anchor playlist.");
+            e
+        })?;
+
+        trace!(playlist=%playlist_mix, "Retrieved a playlist to pull a similar track from.");
+
+        let related_track = playlist_mix
+            .items
+            .into_iter()
+            .skip(1)
+            .find(|item| !item.url.contains(&seed_id))
+            .ok_or_else(|| {
+                // What are the chances?
+                warn!("Playlist search succeeded, but all tracks were duplicates of the seed.");
+                YoutubeError::NotFound
+            })?;
+
+        trace!(
+            ?related_track,
+            "Successfully extracted a curated track from playlist."
+        );
+        Ok(related_track)
     }
 
     /// Robustly extracts a YouTube video ID from various URL formats.

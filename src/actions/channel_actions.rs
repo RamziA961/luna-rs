@@ -51,9 +51,9 @@ pub async fn join_channel(ctx: Context<'_>) -> Result<(), RuntimeError> {
         DisconnectHandler::new(&guild_id, ctx.data().guild_map.clone(), manager.clone()),
     );
 
-    // Run the inactivity check loop every 10min to see if humans left
+    // Run the inactivity check loop every 30s to see if humans left
     handle.add_global_event(
-        Event::Periodic(Duration::from_secs(10 * 60), None),
+        Event::Periodic(Duration::from_secs(30), None),
         InactivityHandler::new(
             &guild_id,
             manager.clone(),

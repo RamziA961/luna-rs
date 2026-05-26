@@ -11,9 +11,7 @@ pub async fn author_in_voice_channel(ctx: Context<'_>) -> Result<bool, RuntimeEr
 
     // Scope block to extract data and drop the non-Send guild object
     let is_in_vc = {
-        let guild = ctx
-            .guild()
-            .ok_or(InternalError::GuildInformationMissing)?;
+        let guild = ctx.guild().ok_or(InternalError::GuildInformationMissing)?;
 
         guild.voice_states.contains_key(&author_id)
     };
@@ -34,9 +32,7 @@ pub async fn author_in_shared_voice_channel(ctx: Context<'_>) -> Result<bool, Ru
     let bot_id = ctx.framework().bot_id;
 
     let (author_vc, bot_vc) = {
-        let guild = ctx
-            .guild()
-            .ok_or(InternalError::GuildInformationMissing)?;
+        let guild = ctx.guild().ok_or(InternalError::GuildInformationMissing)?;
 
         (
             guild
@@ -57,4 +53,26 @@ pub async fn author_in_shared_voice_channel(ctx: Context<'_>) -> Result<bool, Ru
             "Please join a voice channel to initiate this command.".to_string(),
         )),
     }
+}
+
+#[instrument(skip_all, fields(guild_id = %ctx.guild_id().unwrap_or_default()))]
+pub async fn track_is_playing(ctx: Context<'_>) -> Result<bool, RuntimeError> {
+    let guild_id = ctx
+        .guild_id()
+        .ok_or(InternalError::GuildInformationMissing)?
+        .to_string();
+
+    let guild_map = ctx.data().guild_map.read().await;
+    let is_playing = guild_map
+        .get(&guild_id)
+        .map(|s| s.playback_state.is_playing());
+
+    if is_playing.is_none_or(|v| !v) {
+        trace!("Command dispatched with no track playing.");
+        return Err(RuntimeError::User(
+            "Please play a track to initiate this command.".to_string(),
+        ));
+    }
+
+    return Ok(true);
 }

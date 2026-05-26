@@ -1,4 +1,4 @@
-use poise::serenity_prelude::{self, Color, CreateEmbedAuthor, Timestamp};
+use poise::serenity_prelude::{self, Color, Timestamp};
 
 use crate::models::{PlaylistMetadata, QueueElement, VideoMetadata};
 
@@ -131,17 +131,45 @@ pub fn create_queue_overview_embed(
         .field("Queued Tracks", n_tracks.to_string(), true)
 }
 
-pub fn create_ask_embed(model_name: &str, response: &str) -> serenity_prelude::CreateEmbed {
-    create_embed_template()
-        .author(
-            CreateEmbedAuthor::new(format!("{model_name} [experimental feature]"))
-                .icon_url("https://www.gstatic.com/lamda/images/gemini_home_icon_8d62f72e7aae54b6859f1.png")
-                .url("https://gemini.google.com/app")
-        )
+/// Create an embed indicating the radio status.
+pub fn create_radio_embed(
+    is_enabled: bool,
+    seed_track: Option<&VideoMetadata>,
+) -> serenity_prelude::CreateEmbed {
+    let mut embed = create_embed_template()
+        .title("Radio Mode")
+        .description(format!(
+            "Radio mode is now **{}**.",
+            if is_enabled { "ON" } else { "OFF" }
+        ));
+
+    if is_enabled {
+        if let Some(track) = seed_track {
+            embed = embed
+                .field(
+                    "Anchored to:",
+                    format!("{} - {}", track.title, track.channel),
+                    false,
+                )
+                .thumbnail(track.thumbnail_url.to_string());
+        } else {
+            embed = embed.description(
+                "Radio mode is ON. It will start picking tracks once playback begins.",
+            );
+        }
+    }
+
+    embed
+}
+
+/// Create an embed for when the radio auto-fetches a new track.
+pub fn create_radio_playing_embed(track: &VideoMetadata) -> serenity_prelude::CreateEmbed {
+    create_track_embed(track)
+        .title("Radio Found a Track")
+        .description("The radio has automatically queued a similar track.")
         .field(
-            "Disclaimer",
-            "Responses given by Gemini do not represent the views of the author of this bot. Please read the following article on algorithmic bias: https://en.wikipedia.org/wiki/Algorithmic_bias",
-            false
+            "Playing:",
+            format!("{} - {}", track.title, track.channel),
+            false,
         )
-        .description(response)
 }

@@ -93,6 +93,7 @@ impl Server {
                 commands::pause::pause(),
                 commands::play::play(),
                 commands::queue::queue(),
+                commands::radio::radio(),
                 commands::resume::resume(),
                 commands::skip::skip(),
                 commands::stop::stop(),

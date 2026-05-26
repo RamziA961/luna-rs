@@ -1,7 +1,5 @@
-use std::{collections::VecDeque, fmt::Display};
-
 use songbird::tracks::TrackHandle;
-use tracing::trace;
+use std::{collections::VecDeque, fmt::Display};
 
 use super::{QueueElement, VideoMetadata};
 
@@ -11,6 +9,14 @@ pub struct PlaybackState {
     current_track: Option<VideoMetadata>,
     track_handle: Option<TrackHandle>,
     queue: VecDeque<QueueElement>,
+    radio_mode: RadioMode,
+}
+
+#[derive(Debug, Clone, Default)]
+pub enum RadioMode {
+    On(Option<String>),
+    #[default]
+    Off,
 }
 
 impl Display for PlaybackState {
@@ -41,6 +47,12 @@ impl PlaybackState {
 
     pub fn set_current_track(&mut self, current_track: Option<VideoMetadata>) {
         self.current_track = current_track;
+
+        if let RadioMode::On(ref mut seed) = self.radio_mode
+            && let Some(t) = &self.current_track
+        {
+            *seed = Some(t.url.clone());
+        }
     }
 
     pub fn set_track_handle(&mut self, track_handle: Option<TrackHandle>) {
@@ -94,16 +106,39 @@ impl PlaybackState {
 
     pub fn play_next(&mut self) {
         let next = self.dequeue();
-        trace!(next_track=?next);
         self.set_playing(next.is_some());
         self.set_current_track(next);
         self.set_track_handle(None)
+    }
+
+    pub fn toggle_radio_mode(&mut self) {
+        match &self.radio_mode {
+            RadioMode::On(_) => {
+                self.radio_mode = RadioMode::Off;
+            }
+            RadioMode::Off => {
+                self.radio_mode = RadioMode::On(self.current_track.as_ref().map(|t| t.url.clone()));
+            }
+        }
+    }
+
+    pub fn get_radio_seed(&self) -> Option<String> {
+        if let RadioMode::On(seed) = &self.radio_mode {
+            seed.clone()
+        } else {
+            None
+        }
+    }
+
+    pub fn is_radio_mode_enabled(&self) -> bool {
+        matches!(self.radio_mode, RadioMode::On(_))
     }
 
     pub fn reset(&mut self) {
         self.set_current_track(None);
         self.set_track_handle(None);
         self.set_playing(false);
+        self.radio_mode = RadioMode::Off;
         self.queue.clear();
     }
 }

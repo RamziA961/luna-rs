@@ -71,7 +71,7 @@ pub async fn search(
         Some(ResourceType::Playlist) => ctx
             .data()
             .youtube_client
-            .search_playlist(&query)
+            .search_playlist(&query, 50)
             .await
             .map(QueueElement::Playlist),
     }
