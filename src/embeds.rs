@@ -2,69 +2,124 @@ use poise::serenity_prelude::{self, Color, Timestamp};
 
 use crate::models::{PlaylistMetadata, QueueElement, VideoMetadata};
 
+/// Base template with color and timestamp
 fn create_embed_template() -> serenity_prelude::CreateEmbed {
     serenity_prelude::CreateEmbed::new()
         .color(Color::DARK_ORANGE)
         .timestamp(Timestamp::now())
 }
 
-fn create_playlist_embed(playlist: &PlaylistMetadata) -> serenity_prelude::CreateEmbed {
-    create_embed_template()
-        .title(format!("{} - {}", playlist.title, playlist.channel))
-        .url(playlist.url.to_string())
-        .thumbnail(playlist.thumbnail_url.to_string())
-}
-
-fn create_track_embed(track: &VideoMetadata) -> serenity_prelude::CreateEmbed {
-    create_embed_template()
-        .title(format!("{} - {}", track.title, track.channel))
-        .url(track.url.clone())
+/// Helper to consistently format track data across all embeds
+fn populate_track_info(
+    embed: serenity_prelude::CreateEmbed,
+    track: &VideoMetadata,
+) -> serenity_prelude::CreateEmbed {
+    embed
+        .field("Track", format!("[{}]({})", track.title, track.url), false)
+        .field("Channel", &track.channel, true)
         .thumbnail(track.thumbnail_url.to_string())
 }
 
-pub fn create_queued_playlist_embed(playlist: &PlaylistMetadata) -> serenity_prelude::CreateEmbed {
-    create_playlist_embed(playlist)
-        .description("Queued the playlist.")
-        .field("Tracks:", playlist.items.len().to_string(), true)
-}
-
-pub fn create_playling_playlist_embed(
+/// Helper to consistently format playlist data across all embeds
+fn populate_playlist_info(
+    embed: serenity_prelude::CreateEmbed,
     playlist: &PlaylistMetadata,
 ) -> serenity_prelude::CreateEmbed {
-    let mut embed =
-        create_playlist_embed(playlist).description("Playing the next track off the playlist.");
+    embed
+        .field(
+            "Playlist",
+            format!("[{}]({})", playlist.title, playlist.url),
+            false,
+        )
+        .field("Channel", &playlist.channel, true)
+        .thumbnail(playlist.thumbnail_url.to_string())
+}
+
+/// Use for general info or status updates
+pub fn create_info_embed(title: &str, message: &str) -> serenity_prelude::CreateEmbed {
+    create_embed_template().title(title).description(message)
+}
+
+/// Use for success confirmations
+pub fn create_success_embed(title: &str, message: &str) -> serenity_prelude::CreateEmbed {
+    create_embed_template()
+        .color(Color::DARK_GREEN)
+        .title(title)
+        .description(message)
+}
+
+/// Use for errors or failed operations
+pub fn create_error_embed(message: &str) -> serenity_prelude::CreateEmbed {
+    create_embed_template()
+        .color(Color::RED) // Immediate visual cue for an issue
+        .title("Error")
+        .description(message)
+}
+
+// --- Playlist Embeds ---
+
+pub fn create_queued_playlist_embed(playlist: &PlaylistMetadata) -> serenity_prelude::CreateEmbed {
+    let embed = create_embed_template().title("Playlist Queued");
+    populate_playlist_info(embed, playlist).field(
+        "Total Tracks",
+        playlist.items.len().to_string(),
+        true,
+    )
+}
+
+pub fn create_playing_playlist_embed(playlist: &PlaylistMetadata) -> serenity_prelude::CreateEmbed {
+    let mut embed = create_embed_template().title("Now Playing Playlist");
+    embed = populate_playlist_info(embed, playlist).field(
+        "Total Tracks",
+        playlist.items.len().to_string(),
+        true,
+    );
 
     if let Some(first) = playlist.items.front() {
         embed = embed.field(
-            "Up next:",
-            format!("{} - {}\n{}", first.title, first.channel, first.url,),
+            "Up Next",
+            format!("[{}]({})", first.title, first.url),
             false,
-        )
+        );
     }
-
-    embed.field("Tracks:", playlist.items.len().to_string(), true)
+    embed
 }
 
+// --- Track Embeds ---
+
 pub fn create_queued_track_embed(track: &VideoMetadata) -> serenity_prelude::CreateEmbed {
-    create_track_embed(track).description("Queued the track.")
+    let embed = create_embed_template().title("Track Queued");
+    populate_track_info(embed, track)
 }
 
 pub fn create_playing_track_embed(track: &VideoMetadata) -> serenity_prelude::CreateEmbed {
-    create_track_embed(track).description("Playing the next track off of the queue.")
+    let embed = create_embed_template().title("Now Playing");
+    populate_track_info(embed, track)
 }
 
 pub fn create_resume_track_embed(track: &VideoMetadata) -> serenity_prelude::CreateEmbed {
-    create_track_embed(track).description("Resumed track.")
+    let embed = create_embed_template().title("Playback Resumed");
+    populate_track_info(embed, track)
 }
+
+pub fn create_paused_embed(track: &VideoMetadata) -> serenity_prelude::CreateEmbed {
+    let embed = create_embed_template().title("Playback Paused");
+    populate_track_info(embed, track)
+}
+
+// --- Skip Embeds ---
 
 pub fn create_skip_track_embed(
     track: &VideoMetadata,
     skipped: usize,
     remaining: usize,
 ) -> serenity_prelude::CreateEmbed {
-    create_track_embed(track).description(format!(
-        "Skipped {skipped} track(s). Tracks in the queue: {remaining}"
-    ))
+    let embed = create_embed_template()
+        .title("Track Skipped")
+        .description(format!(
+            "Skipped {skipped} track(s). Tracks remaining: {remaining}"
+        ));
+    populate_track_info(embed, track)
 }
 
 pub fn create_skip_playlist_embed(
@@ -72,66 +127,61 @@ pub fn create_skip_playlist_embed(
     skipped: usize,
     remaining: usize,
 ) -> serenity_prelude::CreateEmbed {
-    create_playling_playlist_embed(playlist).description(format!(
-        "Skipped {skipped} track(s). Tracks in the queue: {remaining}"
-    ))
+    let embed = create_embed_template()
+        .title("Playlist Skipped")
+        .description(format!(
+            "Skipped {skipped} track(s). Tracks remaining: {remaining}"
+        ));
+    populate_playlist_info(embed, playlist)
 }
 
-pub fn create_paused_embed(track: &VideoMetadata) -> serenity_prelude::CreateEmbed {
-    create_track_embed(track).description("Paused playback.")
-}
+// --- Queue Overview ---
 
 pub fn create_queue_overview_embed(
     next_tracks: &[QueueElement],
     n_tracks: usize,
     n_items: usize,
 ) -> serenity_prelude::CreateEmbed {
-    let mut template = create_embed_template();
+    let mut embed = create_embed_template()
+        .title("Queue Overview")
+        .field("Queued Items", n_items.to_string(), true)
+        .field("Queued Tracks", n_tracks.to_string(), true);
 
     for (i, element) in next_tracks.iter().enumerate() {
-        let (name, value) = match element {
-            QueueElement::Track(VideoMetadata {
-                title,
-                channel,
-                url,
-                thumbnail_url,
-                ..
-            }) => {
+        match element {
+            QueueElement::Track(track) => {
                 if i == 0 {
-                    template = template.thumbnail(thumbnail_url);
+                    embed = embed.thumbnail(&track.thumbnail_url);
                 }
-
-                (format!("{}. {title}", i + 1), format!("{channel}\n{url}"))
+                embed = embed.field(
+                    format!("{}. {}", i + 1, track.title),
+                    format!("{} | [Link]({})", track.channel, track.url),
+                    false,
+                );
             }
-            QueueElement::Playlist(PlaylistMetadata {
-                title,
-                channel,
-                url,
-                items,
-                thumbnail_url,
-                ..
-            }) => {
+            QueueElement::Playlist(playlist) => {
                 if i == 0 {
-                    template = template.thumbnail(thumbnail_url);
+                    embed = embed.thumbnail(&playlist.thumbnail_url);
                 }
-
-                (
-                    format!("{}. {title} [{} tracks]", i + 1, items.len()),
-                    format!("{channel}\n{url}"),
-                )
+                embed = embed.field(
+                    format!("{}. {} [Playlist]", i + 1, playlist.title),
+                    format!(
+                        "{} | {} tracks | [Link]({})",
+                        playlist.channel,
+                        playlist.items.len(),
+                        playlist.url
+                    ),
+                    false,
+                );
             }
         };
-
-        template = template.field(name, value, false);
     }
 
-    template
-        .title("Song Queue")
-        .field("Queued Items", n_items.to_string(), true)
-        .field("Queued Tracks", n_tracks.to_string(), true)
+    embed
 }
 
-/// Create an embed indicating the radio status.
+// --- Radio Mode Embeds ---
+
 pub fn create_radio_embed(
     is_enabled: bool,
     seed_track: Option<&VideoMetadata>,
@@ -147,14 +197,15 @@ pub fn create_radio_embed(
         if let Some(track) = seed_track {
             embed = embed
                 .field(
-                    "Anchored to:",
-                    format!("{} - {}", track.title, track.channel),
+                    "Anchored To",
+                    format!("[{}]({})", track.title, track.url),
                     false,
                 )
+                .field("Channel", &track.channel, true)
                 .thumbnail(track.thumbnail_url.to_string());
         } else {
             embed = embed.description(
-                "Radio mode is ON. It will start picking tracks once playback begins.",
+                "Radio mode is **ON**.\nIt will start automatically queueing tracks once playback begins.",
             );
         }
     }
@@ -162,14 +213,9 @@ pub fn create_radio_embed(
     embed
 }
 
-/// Create an embed for when the radio auto-fetches a new track.
 pub fn create_radio_playing_embed(track: &VideoMetadata) -> serenity_prelude::CreateEmbed {
-    create_track_embed(track)
-        .title("Radio Found a Track")
-        .description("The radio has automatically queued a similar track.")
-        .field(
-            "Playing:",
-            format!("{} - {}", track.title, track.channel),
-            false,
-        )
+    let embed = create_embed_template()
+        .title("Radio Auto-Play")
+        .description("Automatically queued based on your listening history.");
+    populate_track_info(embed, track)
 }

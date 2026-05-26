@@ -221,9 +221,11 @@ impl Server {
                             .to_string()
                     }
                 };
+                let reply = poise::CreateReply::default()
+                    .embed(crate::embeds::create_error_embed(&user_response));
 
-                if let Err(e) = ctx.reply(user_response).await {
-                    error!(err=%e, user=%user_id, guild=%guild_id, "Failed to send error reply to user.");
+                if let Err(e) = ctx.send(reply).await {
+                    error!(err=%e, user=%user_id, guild=%guild_id, "Failed to send error embed to user.");
                 }
             }
 
@@ -232,25 +234,26 @@ impl Server {
                 let user_id = ctx.author().id.get();
                 let guild_id = ctx.guild_id().map(|id| id.get()).unwrap_or(0);
 
-                if let Some(err) = error {
+                let user_response = if let Some(err) = error {
                     match err {
                         RuntimeError::User(msg) => {
                             info!(command=%command_name, user=%user_id, guild=%guild_id, "Check failed (User): {msg}");
-                            _ = ctx.reply(msg).await;
+                            msg
                         }
                         internal_fault => {
                             error!(command=%command_name, user=%user_id, guild=%guild_id, err=%internal_fault, "Check failed (Internal).");
-                            _ = ctx
-                                .reply("An unexpected error occurred during command validation.")
-                                .await;
+                            "An unexpected error occurred during command validation.".to_string()
                         }
                     }
                 } else {
                     info!(command=%command_name, user=%user_id, guild=%guild_id, "Check failed silently.");
-                    _ = ctx
-                        .reply("You do not meet the requirements to run this command.")
-                        .await;
-                }
+                    "You do not meet the requirements to run this command.".to_string()
+                };
+
+                let reply = poise::CreateReply::default()
+                    .embed(crate::embeds::create_error_embed(&user_response));
+
+                let _ = ctx.send(reply).await;
             }
 
             FrameworkError::EventHandler { error, event, .. } => {

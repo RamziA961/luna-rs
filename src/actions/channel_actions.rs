@@ -62,7 +62,10 @@ pub async fn join_channel(ctx: Context<'_>) -> Result<(), RuntimeError> {
     );
 
     // Intercept media streaming decoding/io errors
-    handle.add_global_event(Event::Track(songbird::TrackEvent::Error), ErrorHandler);
+    handle.add_global_event(
+        Event::Track(songbird::TrackEvent::Error),
+        ErrorHandler::new(ctx.serenity_context().clone(), channel_id),
+    );
 
     Ok(())
 }

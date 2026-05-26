@@ -1,5 +1,5 @@
 use crate::{
-    embeds,
+    embeds::{self, create_info_embed},
     event_handlers::queue_handler::QueueHandler,
     models::{DiscordError, InternalError, QueueElement, RuntimeError},
     server::Context,
@@ -105,7 +105,7 @@ pub async fn add_element_to_queue(
         QueueElement::Track(t) if is_playing => embeds::create_queued_track_embed(&t),
         QueueElement::Track(t) => embeds::create_playing_track_embed(&t),
         QueueElement::Playlist(p) if is_playing => embeds::create_queued_playlist_embed(&p),
-        QueueElement::Playlist(p) => embeds::create_playling_playlist_embed(&p),
+        QueueElement::Playlist(p) => embeds::create_playing_playlist_embed(&p),
     };
 
     ctx.send(poise::CreateReply::default().embed(embed))
@@ -142,9 +142,12 @@ pub async fn stop(ctx: &Context<'_>) -> Result<(), RuntimeError> {
 
     handle.lock().await.stop();
 
-    ctx.reply("Halted playback and reset the track queue.")
-        .await
-        .map_err(DiscordError::Gateway)?;
+    ctx.send(poise::CreateReply::default().embed(create_info_embed(
+        "Playback Stopped",
+        "The queue has been cleared and playback has been halted.",
+    )))
+    .await
+    .map_err(DiscordError::Gateway)?;
 
     Ok(())
 }
@@ -255,15 +258,17 @@ pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), RuntimeError> {
             .await
         }
         None if is_radio => {
-            ctx.reply(
-                "Skipped! The queue is empty, but Radio Mode is active. Fetching next track...",
-            )
+            ctx.send(poise::CreateReply::default().embed(create_info_embed(
+                "Queue Empty",
+                "Radio Mode is active. Searching for a new track...",
+            )))
             .await
         }
         None => {
-            ctx.reply(format!(
-                "Skipped {skipped} tracks. The queue has been exhausted."
-            ))
+            ctx.send(poise::CreateReply::default().embed(create_info_embed(
+                "Playback Stopped",
+                &format!("Skipped {} track(s). The queue is exhausted.", skipped),
+            )))
             .await
         }
     }
