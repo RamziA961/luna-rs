@@ -3,6 +3,7 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 use crate::{
     commands,
     configuration::ConfigurationVariables,
+    metrics::Metric,
     models::{self, DiscordError, RuntimeError},
 };
 use poise::{
@@ -104,6 +105,9 @@ impl Server {
                     let author_id = ctx.author().id.get();
                     let guild_id = ctx.guild_id().map(|id| id.get()).unwrap_or(0);
 
+                    metrics::counter!(Metric::CommandsInvokedTotal.as_ref(), "command" => command_name.clone())
+                        .increment(1);
+
                     tracing::info!(
                         command = %command_name,
                         user = %author_id,
@@ -114,6 +118,8 @@ impl Server {
             },
             post_command: |ctx| {
                 Box::pin(async move {
+                    metrics::counter!(Metric::CommandsCompletedTotal.as_ref(), "command" => ctx.command().name.clone()).increment(1);
+
                     tracing::info!(
                         command = %ctx.command().name,
                         user_id = %ctx.author().id.get(),
@@ -202,6 +208,7 @@ impl Server {
 
                 let user_response = match error {
                     RuntimeError::User(msg) => {
+                        metrics::counter!(Metric::CommandErrorsTotal.as_ref(), "type" => "user_error", "command" => command_name.clone()).increment(1);
                         info!(command=%command_name, user=%user_id, guild=%guild_id, "User error: {msg}");
                         msg
                     }
@@ -210,6 +217,7 @@ impl Server {
                     }
                     // Hide internals
                     internal_fault => {
+                        metrics::counter!(Metric::CommandErrorsTotal.as_ref(), "type" => "internal_error", "command" => command_name.clone()).increment(1);
                         error!(
                             command=%command_name,
                             user=%user_id,
@@ -237,10 +245,12 @@ impl Server {
                 let user_response = if let Some(err) = error {
                     match err {
                         RuntimeError::User(msg) => {
+                            metrics::counter!(Metric::CommandErrorsTotal.as_ref(), "type" => "checks_failed", "command" => command_name.clone()).increment(1);
                             info!(command=%command_name, user=%user_id, guild=%guild_id, "Check failed (User): {msg}");
                             msg
                         }
                         internal_fault => {
+                            metrics::counter!(Metric::CommandErrorsTotal.as_ref(), "type" => "internal_error", "command" => command_name.clone()).increment(1);
                             error!(command=%command_name, user=%user_id, guild=%guild_id, err=%internal_fault, "Check failed (Internal).");
                             "An unexpected error occurred during command validation.".to_string()
                         }
@@ -257,13 +267,18 @@ impl Server {
             }
 
             FrameworkError::EventHandler { error, event, .. } => {
+                metrics::counter!(Metric::EventHandlerErrorsTotal.as_ref(), "type" => "background_error", "event" => event.snake_case_name()).increment(1);
                 error!(event=?event.snake_case_name(), err=%error, "Background event handler failed.");
             }
 
             FrameworkError::Setup { error, .. } => {
+                metrics::counter!(Metric::SystemErrorsTotal.as_ref(), "type" => "setup")
+                    .increment(1);
                 error!(err=%error, "Fatal error during bot setup.");
             }
             other => {
+                metrics::counter!(Metric::SystemErrorsTotal.as_ref(), "type" => "unhandled_framework")
+                    .increment(1);
                 error!(err=%other, "Unhandled framework error.");
             }
         }

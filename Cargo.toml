@@ -10,11 +10,14 @@ google-youtube3 = "7.0.0"
 html-escape = "0.2.13"
 hyper = { version = "1.0.0", features = ["client", "http1"] }
 hyper-rustls = "0.27.3"
+metrics = "0.24.6"
+metrics-exporter-prometheus = "0.18.3"
 poise = "0.6.2"
 rand = "0.10.1"
 reqwest = "0.12.9"
 rustls = "0.23.25"
 songbird = "0.6.0"
+strum = { version = "0.28.0", features = ["derive"] }
 symphonia = { version = "0.5.2", features = ["all"] }
 thiserror = "2.0.18"
 tokio = { version = "1.40.0", features = [

@@ -7,16 +7,29 @@ pub mod commands;
 pub mod configuration;
 pub mod embeds;
 pub mod event_handlers;
+pub mod metrics;
 pub mod models;
 mod server;
 pub mod stream;
 
 use models::LunaError;
 
+const METRICS_ADDR: &str = "0.0.0.0:9000";
+
 #[tokio::main]
 async fn main() -> Result<(), LunaError> {
     use tokio::signal::unix as signal;
     init_tracing();
+
+    use metrics_exporter_prometheus::PrometheusBuilder;
+    use std::net::SocketAddr;
+
+    info!("Starting metrics server");
+    PrometheusBuilder::new()
+        .with_http_listener(METRICS_ADDR.parse::<SocketAddr>().unwrap())
+        .install()
+        .expect("Failed to install prometheus recorder");
+    info!("Metrics server started at {METRICS_ADDR}");
 
     let vars = configuration::ConfigurationVariables::new();
 
@@ -59,8 +72,11 @@ fn init_tracing() {
             .expect("Invalid log directive"),
         );
 
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .pretty()
-        .init();
+    let subscriber = tracing_subscriber::fmt().with_env_filter(filter);
+
+    #[cfg(debug_assertions)]
+    subscriber.pretty().init();
+
+    #[cfg(not(debug_assertions))]
+    subscriber.json().init();
 }

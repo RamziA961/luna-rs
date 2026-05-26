@@ -26,6 +26,13 @@ It does what it says on the tin—nothing more, nothing less.
   - [Development Workflow](#development-workflow)
 - [Production Build](#production-build)
   - [Running the Production Bot](#running-the-production-bot)
+- [Observability](#observability)
+  - [Spinning Up the Metrics Stack](#spinning-up-the-metrics-stack)
+    - [Development with Telemetry](#development-with-telemetry)
+    - [Production with Telemetry](#production-with-telemetry)
+  - [Accessing Grafana Dashboards](#accessing-grafana-dashboards)
+  - [Querying via the Prometheus Web UI](#querying-via-the-prometheus-web-ui)
+  - [The Prometheus Exporter Endpoint](#the-prometheus-exporter-endpoint)
 - [Limitations and Architecture Notes](#limitations-and-architecture-notes)
 <!--toc:end-->
 
@@ -62,7 +69,7 @@ The project includes a `compose.yaml file` to handle the container configuration
 and networking. To start the bot, simply run:
 
 ```bash
-docker compose up --build luna-rs-dev
+docker compose up --build
 ```
 
 ### Development Workflow
@@ -98,12 +105,61 @@ The production setup uses two specific services defined in the `compose.yaml` fi
 downloads the newest version of `yt-dlp` to a shared volume, ensuring the bot
 rarely breaks when YouTube updates its platform.
 
-To start the production bot and the updater in the background, specify their
-service names and use the detached (`-d`) flag:
+To run the production pair in the background (detached mode):
 
 ```bash
-docker compose up -d luna-rs yt-dlp-updater
+docker compose -f compose.prod.yaml up -d
 ```
+
+## Observability
+
+`luna-rs` features telemetry tracking out of the box. It instruments its internal
+core audio pipelines to track operational health.
+
+Monitoring dependencies are completely optional and live in a dedicated
+extension layer: `compose.o11y.yaml`
+
+### Spinning Up the Metrics Stack
+
+To attach the Prometheus and Grafana engine stack, combine your target
+environment file with the observability configuration layer using multi-file composition:
+
+#### Development with Telemetry
+
+```bash
+docker compose -f compose.yaml -f compose.o11y.yaml up --build
+```
+
+#### Production with Telemetry
+
+```bash
+docker compose -f compose.prod.yaml -f compose.o11y.yaml up --build
+```
+
+### Accessing Grafana Dashboards
+
+Once the composition layer is running, the visualization engine becomes
+available natively on your host system:
+
+- URL: `http://localhost:3000` (or `http://your-server-ip:3000` if hosting remotely).
+
+### Querying via the Prometheus Web UI
+
+For raw debugging, ad-hoc calculations, or checking scrape health, you can access
+the Prometheus engine directly via its built-in dashboard web interface:
+
+- URL: `http://localhost:9090` (or `http://<your-server-ip>:9090`)
+
+### The Prometheus Exporter Endpoint
+
+The core application implements a standard, text-based raw metrics collector
+scraper. If you already maintain an external production monitoring cluster, you
+can bypass the local `compose.o11y.yaml` stack entirely and scrape the service
+container directly:
+
+- Port: 9000
+- Path: `/metrics`
+- Endpoint: `http://deployed-bot-ip:9000/metrics`
 
 ## Limitations and Architecture Notes
 
