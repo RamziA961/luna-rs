@@ -298,6 +298,9 @@ impl YoutubeClient {
     /// workaround.
     #[instrument(skip(self))]
     pub async fn get_related_video(&self, url: &str) -> Result<VideoMetadata, YoutubeError> {
+        use rand::seq::SliceRandom;
+        const N_ITEMS: u32 = 10;
+
         trace!("Requested related video for radio mode.");
         let parsed_url = url::Url::parse(url).map_err(|e| {
             trace!(err=%e, "Could not parse seed URL.");
@@ -312,18 +315,27 @@ impl YoutubeClient {
         let seed_metadata = self.get_video_metadata(&seed_id).await?;
 
         let query = format!("{} playlist", seed_metadata.title);
-        let playlist_mix = self.search_playlist(&query, 10).await.map_err(|e| {
+        let playlist_mix = self.search_playlist(&query, N_ITEMS).await.map_err(|e| {
             error!(err=%e, "Radio mode failed to find a valid anchor playlist.");
             e
         })?;
 
         trace!(playlist=%playlist_mix, "Retrieved a playlist to pull a similar track from.");
 
-        let related_track = playlist_mix
-            .items
-            .into_iter()
-            .skip(1)
-            .find(|item| !item.url.contains(&seed_id))
+        let mut rng = rand::rng();
+        let mut indices: Vec<usize> = (0..playlist_mix.items.len()).collect();
+        indices.shuffle(&mut rng);
+
+        let related_track = indices
+            .iter()
+            .find_map(|&i| {
+                let item = playlist_mix.items.get(i)?;
+                if !item.url.contains(&seed_id) {
+                    Some(item.clone())
+                } else {
+                    None
+                }
+            })
             .ok_or_else(|| {
                 // What are the chances?
                 warn!("Playlist search succeeded, but all tracks were duplicates of the seed.");
