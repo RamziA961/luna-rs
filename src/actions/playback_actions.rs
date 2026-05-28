@@ -213,8 +213,10 @@ pub async fn resume(ctx: &Context<'_>) -> Result<(), RuntimeError> {
     Ok(())
 }
 
-#[instrument(skip_all, fields(guild_id = %ctx.guild_id().unwrap_or_default()))]
+#[instrument(skip_all, fields(guild_id = %ctx.guild_id().unwrap_or_default(), user_id = %ctx.author().id))]
 pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), RuntimeError> {
+    trace!("Skip executed with n={n}");
+
     let guild_id = ctx
         .guild_id()
         .ok_or(InternalError::GuildInformationMissing)?;
@@ -233,18 +235,17 @@ pub async fn skip(ctx: &Context<'_>, n: usize) -> Result<(), RuntimeError> {
         guild_state.playback_state.dequeue();
         skipped += 1;
     }
-    // handles the current track + queue head
-    guild_state.playback_state.play_next();
+
+    // Stop current audio to trigger the event handler
+    _ = track_handle.stop(); // TODO: Handle better
     skipped += 1;
 
     let next = guild_state.playback_state.get_current_track().clone();
     let is_radio = guild_state.playback_state.is_radio_mode_enabled();
     let remaining_queued = guild_state.playback_state.number_of_tracks_queued();
 
-    // Stop current audio to trigger the event handler
-    _ = track_handle.stop(); // TODO: Handle better
-
     drop(map_guard);
+    trace!("Skipped {skipped} tracks of requested n={n}.");
 
     match next {
         Some(t) => {

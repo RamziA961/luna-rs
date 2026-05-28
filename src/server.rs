@@ -110,7 +110,7 @@ impl Server {
 
                     tracing::info!(
                         command = %command_name,
-                        user = %author_id,
+                        user_id = %author_id,
                         guild = %guild_id,
                         "Command invoked"
                     );
@@ -209,7 +209,7 @@ impl Server {
                 let user_response = match error {
                     RuntimeError::User(msg) => {
                         metrics::counter!(Metric::CommandErrorsTotal.as_ref(), "type" => "user_error", "command" => command_name.clone()).increment(1);
-                        info!(command=%command_name, user=%user_id, guild=%guild_id, "User error: {msg}");
+                        info!(command=%command_name, user_id=%user_id, guild=%guild_id, "User error: {msg}");
                         msg
                     }
                     RuntimeError::Unimplemented => {
@@ -220,7 +220,7 @@ impl Server {
                         metrics::counter!(Metric::CommandErrorsTotal.as_ref(), "type" => "internal_error", "command" => command_name.clone()).increment(1);
                         error!(
                             command=%command_name,
-                            user=%user_id,
+                            user_id=%user_id,
                             guild=%guild_id,
                             err=%internal_fault,
                             "System error during command execution."
@@ -233,7 +233,7 @@ impl Server {
                     .embed(crate::embeds::create_error_embed(&user_response));
 
                 if let Err(e) = ctx.send(reply).await {
-                    error!(err=%e, user=%user_id, guild=%guild_id, "Failed to send error embed to user.");
+                    error!(err=%e, user_id=%user_id, guild=%guild_id, "Failed to send error embed to user.");
                 }
             }
 
@@ -246,17 +246,17 @@ impl Server {
                     match err {
                         RuntimeError::User(msg) => {
                             metrics::counter!(Metric::CommandErrorsTotal.as_ref(), "type" => "checks_failed", "command" => command_name.clone()).increment(1);
-                            info!(command=%command_name, user=%user_id, guild=%guild_id, "Check failed (User): {msg}");
+                            info!(command=%command_name, user_id=%user_id, guild=%guild_id, "Check failed (User): {msg}");
                             msg
                         }
                         internal_fault => {
                             metrics::counter!(Metric::CommandErrorsTotal.as_ref(), "type" => "internal_error", "command" => command_name.clone()).increment(1);
-                            error!(command=%command_name, user=%user_id, guild=%guild_id, err=%internal_fault, "Check failed (Internal).");
+                            error!(command=%command_name, user_id=%user_id, guild=%guild_id, err=%internal_fault, "Check failed (Internal).");
                             "An unexpected error occurred during command validation.".to_string()
                         }
                     }
                 } else {
-                    info!(command=%command_name, user=%user_id, guild=%guild_id, "Check failed silently.");
+                    info!(command=%command_name, user_id=%user_id, guild=%guild_id, "Check failed silently.");
                     "You do not meet the requirements to run this command.".to_string()
                 };
 
