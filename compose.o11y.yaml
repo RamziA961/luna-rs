@@ -14,6 +14,9 @@ services:
     ports:
       - "3000:3000"
     volumes:
+      - ./o11y/provisioning/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - ./o11y/provisioning/grafana.yaml:/etc/grafana/provisioning/dashboards/default.yaml:ro
+      - ./o11y/dashboards:/etc/grafana/provisioning/dashboards/local_dashboards:ro
       - grafana_data:/var/lib/grafana
     restart: unless-stopped
   node-exporter:
