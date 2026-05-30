@@ -1031,7 +1031,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "up{job=\"luna-rs\"}",
+                        "expr": "max(up{job=\"luna-rs\"})",
                         "legendFormat": "__auto",
                         "range": true
                       },
